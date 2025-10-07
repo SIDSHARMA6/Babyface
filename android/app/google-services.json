@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "828723503305",
+    "project_id": "babyface-a1c8f",
+    "storage_bucket": "babyface-a1c8f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:828723503305:android:d0432df890d0d0ff8ced18",
+        "android_client_info": {
+          "package_name": "com.anilkumar.futurebaby"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "828723503305-d1ash92j6j1jr17qkrn9edoma5rahujf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.anilkumar.futurebaby",
+            "certificate_hash": "a6a044174def61e04c173632dffa0f831a45e362"
+          }
+        },
+        {
+          "client_id": "828723503305-0fgi0n2gm7e1m4mj9flm5lue0dp714o4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0vlzgpcvKC84XUk3o14XpBw_DtXIf7sg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "828723503305-0fgi0n2gm7e1m4mj9flm5lue0dp714o4.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,86 @@
+import 'package:flutter/material.dart';
+import 'dart:math';
+
+// ---------------- Heart Widget ----------------
+class AnimatedHearts extends StatefulWidget {
+  const AnimatedHearts({super.key});
+
+  @override
+  State<AnimatedHearts> createState() => _AnimatedHeartsState();
+}
+
+class _AnimatedHeartsState extends State<AnimatedHearts>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  final Random random = Random();
+
+  // List of heart positions
+  final List<_HeartInfo> hearts = List.generate(
+    10,
+    (index) => _HeartInfo(
+      size: 20 + Random().nextInt(30).toDouble(), // size between 20-50
+      left: Random().nextDouble(),
+      top: Random().nextDouble(),
+      color: Colors.pink[200 + Random().nextInt(3) * 100]!,
+      speed: 1 + Random().nextDouble() * 2,
+    ),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      return AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return Stack(
+              children: hearts.map((heart) {
+                double animValue =
+                    sin(_controller.value * 2 * pi * heart.speed);
+                return Positioned(
+                  left: heart.left * constraints.maxWidth +
+                      animValue * 10, // horizontal float
+                  top: heart.top * constraints.maxHeight +
+                      animValue * 10, // vertical float
+                  child: Icon(
+                    Icons.favorite,
+                    size: heart.size,
+                    color: heart.color,
+                  ),
+                );
+              }).toList(),
+            );
+          });
+    });
+  }
+}
+
+class _HeartInfo {
+  final double size;
+  final double left;
+  final double top;
+  final Color color;
+  final double speed;
+
+  _HeartInfo({
+    required this.size,
+    required this.left,
+    required this.top,
+    required this.color,
+    required this.speed,
+  });
+}
