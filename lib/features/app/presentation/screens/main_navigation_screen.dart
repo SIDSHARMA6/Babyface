@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 
 import '../../../../core/navigation/navigation_provider.dart';
@@ -12,14 +12,14 @@ import '../../../history/presentation/screens/history_screen.dart';
 import '../../../profile_management/presentation/screens/profile_screen.dart';
 
 /// Main navigation screen with bottom navigation bar
-class MainNavigationScreen extends StatefulWidget {
+class MainNavigationScreen extends ConsumerStatefulWidget {
   const MainNavigationScreen({super.key});
 
   @override
-  State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+  ConsumerState<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen>
+class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
     with TickerProviderStateMixin {
   late PageController _pageController;
   late AnimationController _animationController;
@@ -174,14 +174,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   }
 
   Widget _buildNavItem(int index) {
-    return Consumer<NavigationProvider>(
-      builder: (context, navigationProvider, child) {
-        final isSelected = navigationProvider.currentIndex == index;
+    return Consumer(
+      builder: (context, ref, child) {
+        final navigationState = ref.watch(navigationProvider);
+        final navigationNotifier = ref.read(navigationProvider.notifier);
+        final isSelected = navigationState.currentIndex == index;
         final item = _navItems[index];
         final isQuizTab = index == 2; // Quiz tab gets special treatment
 
         return GestureDetector(
-          onTap: () => _onTabTapped(index),
+          onTap: () => _onTabTapped(index, navigationNotifier),
           onTapDown: (_) => _onTabTapDown(index),
           onTapUp: (_) => _onTabTapUp(index),
           onTapCancel: () => _onTabTapUp(index),
@@ -287,10 +289,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     );
   }
 
-  void _onTabTapped(int index) {
-    final navigationProvider = context.read<NavigationProvider>();
-
-    if (navigationProvider.currentIndex == index) {
+  void _onTabTapped(int index, NavigationNotifier navigationNotifier) {
+    final currentIndex = ref.read(navigationProvider).currentIndex;
+    
+    if (currentIndex == index) {
       return; // Prevent unnecessary animations
     }
 
@@ -298,13 +300,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     HapticFeedback.lightImpact();
 
     // Reset previous tab animation
-    _tabAnimationControllers[navigationProvider.currentIndex].reverse();
+    _tabAnimationControllers[currentIndex].reverse();
 
     // Animate new tab
     _tabAnimationControllers[index].forward();
 
     // Update state immediately for instant visual feedback
-    navigationProvider.setCurrentIndex(index);
+    navigationNotifier.setCurrentIndex(index);
 
     // Start page transition animation
     _animationController.reset();
@@ -326,23 +328,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
 
   void _onTabTapUp(int index) {
     // Return to normal state
-    final navigationProvider = context.read<NavigationProvider>();
-    if (navigationProvider.currentIndex == index) {
+    final navigationState = ref.read(navigationProvider);
+    if (navigationState.currentIndex == index) {
       _tabAnimationControllers[index].forward();
     }
   }
 
   void _onPageChanged(int index) {
-    final navigationProvider = context.read<NavigationProvider>();
+    final navigationNotifier = ref.read(navigationProvider.notifier);
+    final navigationState = ref.read(navigationProvider);
 
-    if (navigationProvider.currentIndex != index) {
+    if (navigationState.currentIndex != index) {
       // Reset previous tab animation
-      _tabAnimationControllers[navigationProvider.currentIndex].reverse();
+      _tabAnimationControllers[navigationState.currentIndex].reverse();
 
       // Animate new tab
       _tabAnimationControllers[index].forward();
 
-      navigationProvider.setCurrentIndex(index);
+      navigationNotifier.setCurrentIndex(index);
 
       // Gentle haptic feedback for page swipe
       HapticFeedback.selectionClick();
