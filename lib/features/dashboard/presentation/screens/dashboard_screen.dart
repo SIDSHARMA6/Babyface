@@ -168,6 +168,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         ),
         child: Stack(
           children: [
+            // Edge-to-edge gradient background
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.primaryPink,
+                      AppTheme.primaryBlue,
+                      AppTheme.accentYellow,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+              ),
+            ),
             // Animated hearts background
             const Positioned.fill(
               child: AnimatedHearts(),
@@ -298,91 +314,72 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
     final double topPadding = MediaQuery.of(context).padding.top;
 
+    // Simple immersive app bar - transparent, just content
     return SliverToBoxAdapter(
       child: Container(
         width: double.infinity,
-        height: 120.h + topPadding,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppTheme.primaryPink,
-              AppTheme.primaryBlue,
-              AppTheme.accentYellow,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        color: Colors.transparent, // Transparent since gradient is background
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             20.w,
-            0, // Start from the very top
+            topPadding + 20.h, // Start content below status bar
             20.w,
-            12.h,
+            20.h,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Add space for status bar
-              SizedBox(height: topPadding),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      appBarGreeting,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    SizedBox(height: 6.h),
+                    Text(
+                      appBarSubGreeting,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.95),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          appBarGreeting,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        SizedBox(height: 6.h),
-                        Text(
-                          appBarSubGreeting,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.95),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                  Container(
+                    padding: EdgeInsets.all(10.w),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(15.r),
+                    ),
+                    child: Icon(
+                      Icons.notifications_outlined,
+                      color: Colors.white,
+                      size: 20.w,
                     ),
                   ),
-                  Row(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(10.w),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(15.r),
-                        ),
-                        child: Icon(
-                          Icons.notifications_outlined,
-                          color: Colors.white,
-                          size: 20.w,
-                        ),
-                      ),
-                      SizedBox(width: 8.w),
-                      Container(
-                        padding: EdgeInsets.all(10.w),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(15.r),
-                        ),
-                        child: Icon(
-                          Icons.favorite_rounded,
-                          color: Colors.white,
-                          size: 20.w,
-                        ),
-                      ),
-                    ],
+                  SizedBox(width: 8.w),
+                  Container(
+                    padding: EdgeInsets.all(10.w),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(15.r),
+                    ),
+                    child: Icon(
+                      Icons.favorite_rounded,
+                      color: Colors.white,
+                      size: 20.w,
+                    ),
                   ),
                 ],
               ),
