@@ -16,7 +16,8 @@ class MainNavigationScreen extends ConsumerStatefulWidget {
   const MainNavigationScreen({super.key});
 
   @override
-  ConsumerState<MainNavigationScreen> createState() => _MainNavigationScreenState();
+  ConsumerState<MainNavigationScreen> createState() =>
+      _MainNavigationScreenState();
 }
 
 class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
@@ -108,34 +109,59 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: PageView(
-        controller: _pageController,
-        physics: const BouncingScrollPhysics(), // Cute bouncy physics
-        onPageChanged: (index) {
-          _onPageChanged(index);
-        },
-        children: _screens
-            .map(
-              (screen) => AnimatedBuilder(
-                animation: _animationController,
-                builder: (context, child) {
-                  final animationValue =
-                      _animationController.value.clamp(0.0, 1.0);
-                  return Transform.scale(
-                    scale: 0.95 + (0.05 * animationValue),
-                    child: Opacity(
-                      opacity: (0.7 + (0.3 * animationValue.clamp(0.0, 1.0)))
-                          .clamp(0.0, 1.0),
-                      child: screen,
-                    ),
-                  );
-                },
-              ),
-            )
-            .toList(),
-      ),
-      bottomNavigationBar: _buildCuteBottomNavBar(),
+    return Consumer(
+      builder: (context, ref, child) {
+        final navigationState = ref.watch(navigationProvider);
+
+        // Sync PageView with navigation state
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _pageController.hasClients) {
+            final currentPage = _pageController.page?.round() ?? 0;
+            print(
+                '🔐 [MainNavigationScreen] PageView sync - currentPage: $currentPage, navigationIndex: ${navigationState.currentIndex}');
+            if (currentPage != navigationState.currentIndex) {
+              print(
+                  '🔐 [MainNavigationScreen] Syncing PageView to navigation state');
+              _pageController.animateToPage(
+                navigationState.currentIndex,
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+              );
+            }
+          }
+        });
+
+        return Scaffold(
+          body: PageView(
+            controller: _pageController,
+            physics: const BouncingScrollPhysics(), // Cute bouncy physics
+            onPageChanged: (index) {
+              _onPageChanged(index);
+            },
+            children: _screens
+                .map(
+                  (screen) => AnimatedBuilder(
+                    animation: _animationController,
+                    builder: (context, child) {
+                      final animationValue =
+                          _animationController.value.clamp(0.0, 1.0);
+                      return Transform.scale(
+                        scale: 0.95 + (0.05 * animationValue),
+                        child: Opacity(
+                          opacity:
+                              (0.7 + (0.3 * animationValue.clamp(0.0, 1.0)))
+                                  .clamp(0.0, 1.0),
+                          child: screen,
+                        ),
+                      );
+                    },
+                  ),
+                )
+                .toList(),
+          ),
+          bottomNavigationBar: _buildCuteBottomNavBar(),
+        );
+      },
     );
   }
 
@@ -291,8 +317,11 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
 
   void _onTabTapped(int index, NavigationNotifier navigationNotifier) {
     final currentIndex = ref.read(navigationProvider).currentIndex;
-    
+    print(
+        '🔐 [MainNavigationScreen] Tab tapped - index: $index, currentIndex: $currentIndex');
+
     if (currentIndex == index) {
+      print('🔐 [MainNavigationScreen] Same tab tapped, returning');
       return; // Prevent unnecessary animations
     }
 
@@ -306,6 +335,8 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
     _tabAnimationControllers[index].forward();
 
     // Update state immediately for instant visual feedback
+    print(
+        '🔐 [MainNavigationScreen] Updating navigation state to index: $index');
     navigationNotifier.setCurrentIndex(index);
 
     // Start page transition animation
@@ -313,6 +344,7 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
     _animationController.forward();
 
     // Smooth page transition with cute curve
+    print('🔐 [MainNavigationScreen] Animating PageView to index: $index');
     _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 250), // Super fast transition
@@ -337,8 +369,12 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
   void _onPageChanged(int index) {
     final navigationNotifier = ref.read(navigationProvider.notifier);
     final navigationState = ref.read(navigationProvider);
+    print(
+        '🔐 [MainNavigationScreen] Page changed to index: $index, currentIndex: ${navigationState.currentIndex}');
 
     if (navigationState.currentIndex != index) {
+      print(
+          '🔐 [MainNavigationScreen] Updating navigation state from page change');
       // Reset previous tab animation
       _tabAnimationControllers[navigationState.currentIndex].reverse();
 

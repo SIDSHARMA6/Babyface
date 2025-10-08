@@ -210,8 +210,8 @@ class _BabyGenerationScreenState extends OptimizedState<BabyGenerationScreen> {
   }
 
   void _startGeneration(BabyGenerationNotifier notifier) {
-    // For demo purposes, using existing image paths
-    // In a real app, these would come from image picker
+    // TODO: Implement proper image selection from gallery
+    // This should be replaced with actual image picker functionality
     notifier.startGeneration(
       maleImagePath: 'assets/images/baby1.jpg',
       femaleImagePath: 'assets/images/baby2.jpg',

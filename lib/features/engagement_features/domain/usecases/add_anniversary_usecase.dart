@@ -15,7 +15,7 @@ class AddAnniversaryUsecase {
     // 4. Send analytics event
     // 5. Return success/error
 
-    // For demo purposes, we'll just simulate success
+    // TODO: Implement actual anniversary saving
     if (request.title.isEmpty || request.description.isEmpty) {
       throw Exception('Title and description are required');
     }
@@ -42,7 +42,7 @@ class AddAnniversaryUsecase {
     //   createdAt: DateTime.now(),
     // );
 
-    // TODO: Save anniversary to repository
+    // TODO: Implement actual repository save
     // await repository.addAnniversary(anniversary);
     
     // For now, just log the anniversary creation

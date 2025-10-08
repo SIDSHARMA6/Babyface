@@ -19,7 +19,7 @@ class HiveService {
   final Map<String, Box> _boxes = {};
   final Map<String, Map<String, dynamic>> _memoryCache = {};
   final Map<String, DateTime> _cacheTimestamps = {};
-  
+
   // Performance settings
   static const Duration _cacheExpiry = Duration(minutes: 5);
 
@@ -33,12 +33,16 @@ class HiveService {
     if (_isInitialized) return;
 
     try {
+      print('🔐 [HiveService] Starting Hive initialization...');
+
       // Get application documents directory
       final directory = await getApplicationDocumentsDirectory();
+      print('🔐 [HiveService] Documents directory: ${directory.path}');
       Hive.init(directory.path);
 
       // Register adapters
       _registerAdapters();
+      print('🔐 [HiveService] Adapters registered');
 
       // Open boxes with compression for better performance
       await _openBoxes();
@@ -47,7 +51,9 @@ class HiveService {
       await _preloadCache();
 
       _isInitialized = true;
+      print('✅ [HiveService] Hive initialization completed successfully');
     } catch (e) {
+      print('❌ [HiveService] Failed to initialize Hive: $e');
       throw Exception('Failed to initialize Hive: $e');
     }
   }
@@ -63,6 +69,8 @@ class HiveService {
   /// Open all required boxes with compression
   Future<void> _openBoxes() async {
     final boxNames = [
+      'user_box', // For login user data
+      'memory_box', // For memory journal data
       'baby_results',
       'user_profiles',
       'quiz_results',
@@ -77,10 +85,12 @@ class HiveService {
 
     for (final boxName in boxNames) {
       try {
+        print('🔐 [HiveService] Opening box: $boxName');
         final box = await Hive.openBox(boxName);
         _boxes[boxName] = box;
+        print('✅ [HiveService] Box opened successfully: $boxName');
       } catch (e) {
-        // Failed to open box $boxName: $e
+        print('❌ [HiveService] Failed to open box $boxName: $e');
       }
     }
   }
@@ -88,7 +98,7 @@ class HiveService {
   /// Preload frequently accessed data into memory cache
   Future<void> _preloadCache() async {
     final priorityBoxes = ['app_settings', 'user_profiles', 'navigation_state'];
-    
+
     for (final boxName in priorityBoxes) {
       final box = _boxes[boxName];
       if (box != null) {
@@ -100,8 +110,10 @@ class HiveService {
 
   /// Ultra-fast store with memory cache
   Future<void> store(String boxName, String key, dynamic value) async {
+    print('🔐 [HiveService] Storing data - Box: $boxName, Key: $key');
     final box = _boxes[boxName];
     if (box == null) {
+      print('❌ [HiveService] Box $boxName not found');
       throw Exception('Box $boxName not found');
     }
 
@@ -114,16 +126,20 @@ class HiveService {
 
     // Write to disk asynchronously
     await box.put(key, value);
+    print('✅ [HiveService] Data stored successfully to box: $boxName');
   }
 
   /// Ultra-fast retrieve with memory cache
   dynamic retrieve(String boxName, String key) {
+    print('🔐 [HiveService] Retrieving data - Box: $boxName, Key: $key');
+
     // Check memory cache first
-    if (_memoryCache.containsKey(boxName) && 
+    if (_memoryCache.containsKey(boxName) &&
         _memoryCache[boxName]!.containsKey(key)) {
       final cacheTime = _cacheTimestamps[boxName];
-      if (cacheTime != null && 
+      if (cacheTime != null &&
           DateTime.now().difference(cacheTime) < _cacheExpiry) {
+        print('✅ [HiveService] Data found in cache');
         return _memoryCache[boxName]![key];
       }
     }
@@ -131,11 +147,14 @@ class HiveService {
     // Fallback to disk
     final box = _boxes[boxName];
     if (box == null) {
+      print('❌ [HiveService] Box $boxName not found');
       throw Exception('Box $boxName not found');
     }
 
     final value = box.get(key);
-    
+    print(
+        '🔐 [HiveService] Data from disk: ${value != null ? 'Found' : 'Not found'}');
+
     // Update cache
     if (_memoryCache[boxName] == null) {
       _memoryCache[boxName] = {};
@@ -167,11 +186,11 @@ class HiveService {
   /// Batch retrieve for bulk operations
   Map<String, dynamic> retrieveBatch(String boxName, List<String> keys) {
     final result = <String, dynamic>{};
-    
+
     for (final key in keys) {
       result[key] = retrieve(boxName, key);
     }
-    
+
     return result;
   }
 
@@ -180,7 +199,7 @@ class HiveService {
     // Check memory cache first
     if (_memoryCache.containsKey(boxName)) {
       final cacheTime = _cacheTimestamps[boxName];
-      if (cacheTime != null && 
+      if (cacheTime != null &&
           DateTime.now().difference(cacheTime) < _cacheExpiry) {
         return Map<String, dynamic>.from(_memoryCache[boxName]!);
       }
@@ -193,7 +212,7 @@ class HiveService {
     }
 
     final data = Map<String, dynamic>.from(box.toMap());
-    
+
     // Update cache
     _memoryCache[boxName] = data;
     _cacheTimestamps[boxName] = DateTime.now();
@@ -210,7 +229,7 @@ class HiveService {
 
     // Remove from cache
     _memoryCache[boxName]?.remove(key);
-    
+
     await box.delete(key);
   }
 
@@ -223,7 +242,7 @@ class HiveService {
 
     // Clear cache
     _memoryCache[boxName]?.clear();
-    
+
     await box.clear();
   }
 
@@ -248,7 +267,7 @@ class HiveService {
   /// Check if key exists (cached)
   bool containsKey(String boxName, String key) {
     // Check cache first
-    if (_memoryCache.containsKey(boxName) && 
+    if (_memoryCache.containsKey(boxName) &&
         _memoryCache[boxName]!.containsKey(key)) {
       return true;
     }
@@ -339,7 +358,7 @@ class HiveService {
       // Batch delete for better performance
       if (keysToDelete.isNotEmpty) {
         await box.deleteAll(keysToDelete);
-        
+
         // Update cache
         for (final key in keysToDelete) {
           _memoryCache[boxName]?.remove(key);
@@ -363,15 +382,16 @@ class HiveService {
   /// Backup data
   Future<void> backupData() async {
     final backupData = <String, Map<String, dynamic>>{};
-    
+
     for (final boxName in _boxes.keys) {
       backupData[boxName] = getAll(boxName);
     }
-    
+
     final backupJson = jsonEncode(backupData);
     // Save to file or cloud storage
     final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/backup_${DateTime.now().millisecondsSinceEpoch}.json');
+    final file = File(
+        '${directory.path}/backup_${DateTime.now().millisecondsSinceEpoch}.json');
     await file.writeAsString(backupJson);
   }
 
@@ -380,7 +400,7 @@ class HiveService {
     final file = File(backupPath);
     final backupJson = await file.readAsString();
     final backupData = jsonDecode(backupJson) as Map<String, dynamic>;
-    
+
     for (final entry in backupData.entries) {
       final boxName = entry.key;
       final data = entry.value as Map<String, dynamic>;

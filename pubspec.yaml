@@ -40,6 +40,11 @@ dependencies:
   image_picker: ^1.0.4
   image: ^3.0.2
 
+  # Audio Recording & Playback (temporarily disabled due to Android namespace issues)
+  # record: ^4.4.4
+  # audioplayers: ^5.2.1
+  # permission_handler: ^11.0.1
+
   # Storage
   shared_preferences: ^2.2.2
   path_provider: ^2.1.2
@@ -63,6 +68,12 @@ dependencies:
   firebase_messaging: ^14.7.10
   cloud_functions: ^4.6.0
 
+  # Google Sign-In
+  google_sign_in: ^6.1.6
+
+  # Device Info
+  device_info_plus: ^9.1.1
+
   # Utilities
   equatable: ^2.0.5
   uuid: ^4.2.1
@@ -77,7 +88,6 @@ dependencies:
   
   # AI/ML for face processing
   camera: ^0.10.5+9
-  permission_handler: ^11.0.1
   
   # Math and vector operations
   vector_math: ^2.1.4

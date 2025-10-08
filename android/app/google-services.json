@@ -2,7 +2,8 @@
   "project_info": {
     "project_number": "828723503305",
     "project_id": "babyface-a1c8f",
-    "storage_bucket": "babyface-a1c8f.firebasestorage.app"
+    "storage_bucket": "babyface-a1c8f.firebasestorage.app",
+    "firebase_url": "https://babyface-a1c8f-default-rtdb.firebaseio.com"
   },
   "client": [
     {
@@ -12,6 +13,7 @@
           "package_name": "com.anilkumar.futurebaby"
         }
       },
+      "google_app_id": "1:828723503305:android:d0432df890d0d0ff8ced18",
       "oauth_client": [
         {
           "client_id": "828723503305-d1ash92j6j1jr17qkrn9edoma5rahujf.apps.googleusercontent.com",

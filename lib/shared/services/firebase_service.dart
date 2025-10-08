@@ -7,6 +7,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../firebase_options.dart';
 
 /// Firebase service for cloud backend
 /// Follows master plan cloud integration standards
@@ -16,92 +17,147 @@ class FirebaseService {
   FirebaseService._internal();
 
   bool _isInitialized = false;
-  late FirebaseAuth _auth;
-  late FirebaseFirestore _firestore;
-  late FirebaseStorage _storage;
-  late FirebaseAnalytics _analytics;
-  late FirebaseCrashlytics _crashlytics;
-  late FirebaseMessaging _messaging;
+  FirebaseAuth? _auth;
+  FirebaseFirestore? _firestore;
+  FirebaseStorage? _storage;
+  FirebaseAnalytics? _analytics;
+  FirebaseCrashlytics? _crashlytics;
+  FirebaseMessaging? _messaging;
+
+  /// Check if Firebase is initialized
+  bool get isInitialized => _isInitialized;
 
   /// Initialize Firebase service
   Future<void> initialize() async {
-    if (_isInitialized) return;
+    print('🔥 [FirebaseService] Starting Firebase initialization...');
+
+    if (_isInitialized) {
+      print('🔥 [FirebaseService] Firebase already initialized, skipping...');
+      return;
+    }
 
     try {
-      // Initialize Firebase
-      await Firebase.initializeApp();
+      // Check if Firebase is already initialized
+      if (Firebase.apps.isNotEmpty) {
+        print(
+            '🔥 [FirebaseService] Firebase apps already exist, marking as initialized');
+        _isInitialized = true;
+        return;
+      }
 
+      print('🔥 [FirebaseService] Initializing Firebase with options...');
+      // Initialize Firebase with options
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      print('🔥 [FirebaseService] Firebase.initializeApp completed');
+
+      // Wait a bit for Firebase to fully initialize
+      print('🔥 [FirebaseService] Waiting for Firebase to fully initialize...');
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      print('🔥 [FirebaseService] Initializing Firebase services...');
       // Initialize Firebase services
       _auth = FirebaseAuth.instance;
-      _firestore = FirebaseFirestore.instance;
-      _storage = FirebaseStorage.instance;
-      _analytics = FirebaseAnalytics.instance;
-      _crashlytics = FirebaseCrashlytics.instance;
-      _messaging = FirebaseMessaging.instance;
+      print('🔥 [FirebaseService] FirebaseAuth initialized');
 
+      _firestore = FirebaseFirestore.instance;
+      print('🔥 [FirebaseService] FirebaseFirestore initialized');
+
+      _storage = FirebaseStorage.instance;
+      print('🔥 [FirebaseService] FirebaseStorage initialized');
+
+      _analytics = FirebaseAnalytics.instance;
+      print('🔥 [FirebaseService] FirebaseAnalytics initialized');
+
+      _crashlytics = FirebaseCrashlytics.instance;
+      print('🔥 [FirebaseService] FirebaseCrashlytics initialized');
+
+      _messaging = FirebaseMessaging.instance;
+      print('🔥 [FirebaseService] FirebaseMessaging initialized');
+
+      print('🔥 [FirebaseService] Configuring Firebase settings...');
       // Configure Firebase settings
       await _configureFirebase();
+      print('🔥 [FirebaseService] Firebase configuration completed');
 
       _isInitialized = true;
+      print('✅ [FirebaseService] Firebase initialized successfully');
     } catch (e) {
-      throw Exception('Failed to initialize Firebase: $e');
+      // Log the error but don't throw - allow app to continue with limited functionality
+      print('❌ [FirebaseService] Firebase initialization failed: $e');
+      print('❌ [FirebaseService] Error type: ${e.runtimeType}');
+      _isInitialized = false;
     }
   }
 
   /// Configure Firebase settings
   Future<void> _configureFirebase() async {
-    // Enable crashlytics
-    await _crashlytics.setCrashlyticsCollectionEnabled(true);
+    try {
+      // Enable crashlytics
+      await _crashlytics?.setCrashlyticsCollectionEnabled(true);
 
-    // Request notification permissions
-    await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+      // Request notification permissions
+      await _messaging?.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
 
-    // Configure Firestore settings
-    _firestore.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
+      // Configure Firestore settings
+      _firestore?.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+    } catch (e) {
+      print('Firebase configuration failed: $e');
+      // Continue without some Firebase features
+    }
   }
 
   /// Get Firebase Auth instance
-  FirebaseAuth get auth => _auth;
+  FirebaseAuth? get auth => _auth;
 
   /// Get Firestore instance
-  FirebaseFirestore get firestore => _firestore;
+  FirebaseFirestore? get firestore => _firestore;
 
   /// Get Storage instance
-  FirebaseStorage get storage => _storage;
+  FirebaseStorage? get storage => _storage;
 
   /// Get Analytics instance
-  FirebaseAnalytics get analytics => _analytics;
+  FirebaseAnalytics? get analytics => _analytics;
 
   /// Get Crashlytics instance
-  FirebaseCrashlytics get crashlytics => _crashlytics;
+  FirebaseCrashlytics? get crashlytics => _crashlytics;
 
   /// Get Messaging instance
-  FirebaseMessaging get messaging => _messaging;
+  FirebaseMessaging? get messaging => _messaging;
 
   /// Sign in with email and password
   Future<UserCredential> signInWithEmailAndPassword({
     required String email,
     required String password,
   }) async {
+    if (!_isInitialized || _auth == null) {
+      throw Exception('Firebase not initialized. Call initialize() first.');
+    }
+
     try {
-      final credential = await _auth.signInWithEmailAndPassword(
+      final credential = await _auth!.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       // Track sign in event
-      await _analytics.logLogin(loginMethod: 'email');
+      if (_analytics != null) {
+        await _analytics!.logLogin(loginMethod: 'email');
+      }
 
       return credential;
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
       rethrow;
     }
   }
@@ -111,38 +167,54 @@ class FirebaseService {
     required String email,
     required String password,
   }) async {
+    if (!_isInitialized || _auth == null) {
+      throw Exception('Firebase not initialized. Call initialize() first.');
+    }
+
     try {
-      final credential = await _auth.createUserWithEmailAndPassword(
+      final credential = await _auth!.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       // Track sign up event
-      await _analytics.logSignUp(signUpMethod: 'email');
+      if (_analytics != null) {
+        await _analytics!.logSignUp(signUpMethod: 'email');
+      }
 
       return credential;
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
       rethrow;
     }
   }
 
   /// Sign out
   Future<void> signOut() async {
+    if (!_isInitialized || _auth == null) {
+      throw Exception('Firebase not initialized. Call initialize() first.');
+    }
+
     try {
-      await _auth.signOut();
-      await _analytics.logEvent(name: 'user_sign_out');
+      await _auth!.signOut();
+      if (_analytics != null) {
+        await _analytics!.logEvent(name: 'user_sign_out');
+      }
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
       rethrow;
     }
   }
 
   /// Get current user
-  User? get currentUser => _auth.currentUser;
+  User? get currentUser => _auth?.currentUser;
 
   /// Check if user is signed in
-  bool get isSignedIn => _auth.currentUser != null;
+  bool get isSignedIn => _auth?.currentUser != null;
 
   /// Upload file to Firebase Storage
   Future<String> uploadFile({
@@ -150,31 +222,43 @@ class FirebaseService {
     required String fileName,
     required List<int> fileData,
   }) async {
+    if (!_isInitialized || _storage == null) {
+      throw Exception('Firebase not initialized. Call initialize() first.');
+    }
+
     try {
-      final ref = _storage.ref().child(path).child(fileName);
+      final ref = _storage!.ref().child(path).child(fileName);
       final uploadTask = ref.putData(Uint8List.fromList(fileData));
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
-      await _analytics.logEvent(
-        name: 'file_upload',
-        parameters: {
-          'file_name': fileName,
-          'file_size': fileData.length,
-        },
-      );
+      if (_analytics != null) {
+        await _analytics!.logEvent(
+          name: 'file_upload',
+          parameters: {
+            'file_name': fileName,
+            'file_size': fileData.length,
+          },
+        );
+      }
 
       return downloadUrl;
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
       rethrow;
     }
   }
 
   /// Download file from Firebase Storage
   Future<List<int>> downloadFile(String downloadUrl) async {
+    if (!_isInitialized || _storage == null) {
+      throw Exception('Firebase not initialized. Call initialize() first.');
+    }
+
     try {
-      final ref = _storage.refFromURL(downloadUrl);
+      final ref = _storage!.refFromURL(downloadUrl);
       final data = await ref.getData();
 
       if (data == null) {
@@ -183,7 +267,9 @@ class FirebaseService {
 
       return data;
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
       rethrow;
     }
   }
@@ -194,21 +280,29 @@ class FirebaseService {
     required String documentId,
     required Map<String, dynamic> data,
   }) async {
+    if (!_isInitialized || _firestore == null) {
+      throw Exception('Firebase not initialized. Call initialize() first.');
+    }
+
     try {
-      await _firestore
+      await _firestore!
           .collection(collection)
           .doc(documentId)
           .set(data, SetOptions(merge: true));
 
-      await _analytics.logEvent(
-        name: 'firestore_write',
-        parameters: {
-          'collection': collection,
-          'document_id': documentId,
-        },
-      );
+      if (_analytics != null) {
+        await _analytics!.logEvent(
+          name: 'firestore_write',
+          parameters: {
+            'collection': collection,
+            'document_id': documentId,
+          },
+        );
+      }
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
       rethrow;
     }
   }
@@ -218,20 +312,29 @@ class FirebaseService {
     required String collection,
     required String documentId,
   }) async {
-    try {
-      final doc = await _firestore.collection(collection).doc(documentId).get();
+    if (!_isInitialized || _firestore == null) {
+      throw Exception('Firebase not initialized. Call initialize() first.');
+    }
 
-      await _analytics.logEvent(
-        name: 'firestore_read',
-        parameters: {
-          'collection': collection,
-          'document_id': documentId,
-        },
-      );
+    try {
+      final doc =
+          await _firestore!.collection(collection).doc(documentId).get();
+
+      if (_analytics != null) {
+        await _analytics!.logEvent(
+          name: 'firestore_read',
+          parameters: {
+            'collection': collection,
+            'document_id': documentId,
+          },
+        );
+      }
 
       return doc;
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
       rethrow;
     }
   }
@@ -241,20 +344,28 @@ class FirebaseService {
     required String collection,
     Query? query,
   }) async {
+    if (!_isInitialized || _firestore == null) {
+      throw Exception('Firebase not initialized. Call initialize() first.');
+    }
+
     try {
-      final q = query ?? _firestore.collection(collection);
+      final q = query ?? _firestore!.collection(collection);
       final snapshot = await q.get();
 
-      await _analytics.logEvent(
-        name: 'firestore_query',
-        parameters: {
-          'collection': collection,
-        },
-      );
+      if (_analytics != null) {
+        await _analytics!.logEvent(
+          name: 'firestore_query',
+          parameters: {
+            'collection': collection,
+          },
+        );
+      }
 
       return snapshot;
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
       rethrow;
     }
   }
@@ -264,18 +375,26 @@ class FirebaseService {
     required String collection,
     required String documentId,
   }) async {
-    try {
-      await _firestore.collection(collection).doc(documentId).delete();
+    if (!_isInitialized || _firestore == null) {
+      throw Exception('Firebase not initialized. Call initialize() first.');
+    }
 
-      await _analytics.logEvent(
-        name: 'firestore_delete',
-        parameters: {
-          'collection': collection,
-          'document_id': documentId,
-        },
-      );
+    try {
+      await _firestore!.collection(collection).doc(documentId).delete();
+
+      if (_analytics != null) {
+        await _analytics!.logEvent(
+          name: 'firestore_delete',
+          parameters: {
+            'collection': collection,
+            'document_id': documentId,
+          },
+        );
+      }
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
       rethrow;
     }
   }
@@ -285,13 +404,19 @@ class FirebaseService {
     required String name,
     Map<String, dynamic>? parameters,
   }) async {
+    if (!_isInitialized || _analytics == null) {
+      return; // Silently fail if Firebase not initialized
+    }
+
     try {
-      await _analytics.logEvent(
+      await _analytics!.logEvent(
         name: name,
         parameters: parameters,
       );
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
     }
   }
 
@@ -300,19 +425,25 @@ class FirebaseService {
     required String userId,
     Map<String, dynamic>? properties,
   }) async {
+    if (!_isInitialized || _analytics == null) {
+      return; // Silently fail if Firebase not initialized
+    }
+
     try {
-      await _analytics.setUserId(id: userId);
+      await _analytics!.setUserId(id: userId);
 
       if (properties != null) {
         for (final entry in properties.entries) {
-          await _analytics.setUserProperty(
+          await _analytics!.setUserProperty(
             name: entry.key,
             value: entry.value.toString(),
           );
         }
       }
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
     }
   }
 
@@ -322,8 +453,12 @@ class FirebaseService {
     StackTrace? stackTrace, {
     String? reason,
   }) async {
+    if (!_isInitialized || _crashlytics == null) {
+      return; // Silently fail if Firebase not initialized
+    }
+
     try {
-      await _crashlytics.recordError(
+      await _crashlytics!.recordError(
         error,
         stackTrace,
         reason: reason,
@@ -335,37 +470,59 @@ class FirebaseService {
 
   /// Get FCM token
   Future<String?> getFCMToken() async {
+    if (!_isInitialized || _messaging == null) {
+      return null;
+    }
+
     try {
-      return await _messaging.getToken();
+      return await _messaging!.getToken();
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
       return null;
     }
   }
 
   /// Subscribe to topic
   Future<void> subscribeToTopic(String topic) async {
+    if (!_isInitialized || _messaging == null) {
+      return; // Silently fail if Firebase not initialized
+    }
+
     try {
-      await _messaging.subscribeToTopic(topic);
-      await _analytics.logEvent(
-        name: 'topic_subscribe',
-        parameters: {'topic': topic},
-      );
+      await _messaging!.subscribeToTopic(topic);
+      if (_analytics != null) {
+        await _analytics!.logEvent(
+          name: 'topic_subscribe',
+          parameters: {'topic': topic},
+        );
+      }
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
     }
   }
 
   /// Unsubscribe from topic
   Future<void> unsubscribeFromTopic(String topic) async {
+    if (!_isInitialized || _messaging == null) {
+      return; // Silently fail if Firebase not initialized
+    }
+
     try {
-      await _messaging.unsubscribeFromTopic(topic);
-      await _analytics.logEvent(
-        name: 'topic_unsubscribe',
-        parameters: {'topic': topic},
-      );
+      await _messaging!.unsubscribeFromTopic(topic);
+      if (_analytics != null) {
+        await _analytics!.logEvent(
+          name: 'topic_unsubscribe',
+          parameters: {'topic': topic},
+        );
+      }
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
     }
   }
 }

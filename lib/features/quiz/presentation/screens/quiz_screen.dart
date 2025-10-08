@@ -770,6 +770,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       const Text(
                         'Baby Prediction Quiz',

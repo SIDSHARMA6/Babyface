@@ -84,16 +84,20 @@ class _HistoryScreenState extends State<HistoryScreen>
   }
 
   void _loadHistoryData() {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
     });
 
     // Simulate loading data
     Future.delayed(const Duration(milliseconds: 500), () {
-      setState(() {
-        _babyResults = _generateMockData();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _babyResults = _generateMockData();
+          _isLoading = false;
+        });
+      }
     });
   }
 
@@ -628,6 +632,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                 padding: EdgeInsets.all(12.w),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       'Match Score',

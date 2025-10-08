@@ -36,9 +36,7 @@ class NavigationState {
 
   @override
   int get hashCode {
-    return currentIndex.hashCode ^
-        isAnimating.hashCode ^
-        lastUpdated.hashCode;
+    return currentIndex.hashCode ^ isAnimating.hashCode ^ lastUpdated.hashCode;
   }
 }
 
@@ -48,7 +46,8 @@ class NavigationNotifier extends StateNotifier<NavigationState> {
   static const String _boxName = 'navigation_state';
   static const String _currentIndexKey = 'current_index';
 
-  NavigationNotifier(this._hiveService) : super(NavigationState(lastUpdated: DateTime.now())) {
+  NavigationNotifier(this._hiveService)
+      : super(NavigationState(lastUpdated: DateTime.now())) {
     _loadFromHive();
   }
 
@@ -78,11 +77,14 @@ class NavigationNotifier extends StateNotifier<NavigationState> {
 
   /// Set current navigation index
   void setCurrentIndex(int index) {
+    print('🔐 [NavigationProvider] Setting current index to: $index');
     if (state.currentIndex != index) {
       state = state.copyWith(
         currentIndex: index,
         lastUpdated: DateTime.now(),
       );
+      print(
+          '🔐 [NavigationProvider] State updated - currentIndex: ${state.currentIndex}');
       _saveToHive();
     }
   }
@@ -145,7 +147,8 @@ class NavigationNotifier extends StateNotifier<NavigationState> {
 }
 
 /// Navigation provider for Riverpod
-final navigationProvider = StateNotifierProvider<NavigationNotifier, NavigationState>((ref) {
+final navigationProvider =
+    StateNotifierProvider<NavigationNotifier, NavigationState>((ref) {
   final hiveService = ref.watch(hiveServiceProvider);
   return NavigationNotifier(hiveService);
 });

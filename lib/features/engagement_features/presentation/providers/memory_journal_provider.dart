@@ -1,70 +1,52 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../domain/entities/memory_journal_entity.dart';
-import '../../domain/usecases/add_memory_usecase.dart';
-import '../../domain/usecases/get_memories_usecase.dart';
+import '../../../../shared/services/hive_service.dart';
+import '../../../../shared/services/firebase_user_service.dart';
+import '../../data/models/memory_model.dart';
+import '../../data/repositories/hybrid_memory_repository.dart';
 
 /// Memory journal state
 class MemoryJournalState {
-  final List<MemoryJournalEntity> memories;
+  final List<MemoryModel> memories;
   final bool isLoading;
   final String? errorMessage;
+  final bool isAddingMemory;
 
   const MemoryJournalState({
     this.memories = const [],
     this.isLoading = false,
     this.errorMessage,
+    this.isAddingMemory = false,
   });
 
   MemoryJournalState copyWith({
-    List<MemoryJournalEntity>? memories,
+    List<MemoryModel>? memories,
     bool? isLoading,
     String? errorMessage,
+    bool? isAddingMemory,
   }) {
     return MemoryJournalState(
       memories: memories ?? this.memories,
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage ?? this.errorMessage,
+      isAddingMemory: isAddingMemory ?? this.isAddingMemory,
     );
   }
 }
 
-/// Memory journal notifier
+/// Memory journal notifier with Hive and Firebase integration
 class MemoryJournalNotifier extends StateNotifier<MemoryJournalState> {
-  final AddMemoryUsecase _addMemoryUsecase;
-  final GetMemoriesUsecase _getMemoriesUsecase;
+  final HybridMemoryRepository _repository;
 
-  MemoryJournalNotifier(
-    this._addMemoryUsecase,
-    this._getMemoriesUsecase,
-  ) : super(const MemoryJournalState()) {
+  MemoryJournalNotifier(this._repository) : super(const MemoryJournalState()) {
     loadMemories();
   }
 
-  /// Add new memory
-  Future<void> addMemory(MemoryJournalRequest request) async {
-    try {
-      state = state.copyWith(isLoading: true, errorMessage: null);
-
-      final memory = await _addMemoryUsecase.execute(request);
-
-      state = state.copyWith(
-        memories: [memory, ...state.memories],
-        isLoading: false,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
-    }
-  }
-
-  /// Load all memories
+  /// Load all memories from Hive
   Future<void> loadMemories() async {
     try {
       state = state.copyWith(isLoading: true, errorMessage: null);
 
-      final memories = await _getMemoriesUsecase.execute();
+      final memories = await _repository.getAllMemories();
 
       state = state.copyWith(
         memories: memories,
@@ -78,17 +60,148 @@ class MemoryJournalNotifier extends StateNotifier<MemoryJournalState> {
     }
   }
 
+  /// Add new memory
+  Future<void> addMemory({
+    required String title,
+    required String description,
+    required String emoji,
+    String? photoPath,
+    String? voicePath,
+    String? location,
+    List<String> tags = const [],
+    String mood = 'joyful',
+    DateTime? date,
+  }) async {
+    try {
+      state = state.copyWith(isAddingMemory: true, errorMessage: null);
+
+      final now = DateTime.now();
+      final memoryId = 'memory_${now.millisecondsSinceEpoch}';
+      final memoryDate = date ?? now;
+      final memory = MemoryModel(
+        id: memoryId,
+        title: title,
+        description: description,
+        emoji: emoji,
+        photoPath: photoPath,
+        voicePath: voicePath,
+        date: memoryDate.toIso8601String(),
+        mood: mood,
+        positionIndex: state.memories.length,
+        timestamp: memoryDate.millisecondsSinceEpoch,
+        location: location,
+        tags: tags,
+      );
+
+      // Save to both Hive and Firebase (hybrid repository handles this)
+      await _repository.addMemory(memory);
+
+      // Add to current state
+      final updatedMemories = [memory, ...state.memories];
+      state = state.copyWith(
+        memories: updatedMemories,
+        isAddingMemory: false,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isAddingMemory: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  /// Update existing memory
+  Future<void> updateMemory(MemoryModel memory) async {
+    try {
+      state = state.copyWith(isLoading: true, errorMessage: null);
+
+      await _repository.updateMemory(memory);
+
+      // Update in current state
+      final updatedMemories = state.memories.map((m) {
+        if (m.id == memory.id) return memory;
+        return m;
+      }).toList();
+
+      state = state.copyWith(
+        memories: updatedMemories,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  /// Update existing memory with individual parameters
+  Future<void> updateMemoryWithParams(
+    String memoryId, {
+    required String title,
+    required String description,
+    required String emoji,
+    String? photoPath,
+    String? voicePath,
+    String? location,
+    List<String> tags = const [],
+    String mood = 'joyful',
+  }) async {
+    try {
+      state = state.copyWith(isLoading: true, errorMessage: null);
+
+      // Find existing memory
+      final existingMemory = state.memories.firstWhere(
+        (m) => m.id == memoryId,
+        orElse: () => throw Exception('Memory not found'),
+      );
+
+      // Create updated memory
+      final updatedMemory = existingMemory.copyWith(
+        title: title,
+        description: description,
+        emoji: emoji,
+        photoPath: photoPath,
+        voicePath: voicePath,
+        location: location,
+        tags: tags,
+        mood: mood,
+      );
+
+      await _repository.updateMemory(updatedMemory);
+
+      // Update in current state
+      final updatedMemories = state.memories.map((m) {
+        if (m.id == memoryId) return updatedMemory;
+        return m;
+      }).toList();
+
+      state = state.copyWith(
+        memories: updatedMemories,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
   /// Toggle favorite status
   Future<void> toggleFavorite(String memoryId) async {
     try {
-      final memories = state.memories.map((memory) {
+      await _repository.toggleFavorite(memoryId);
+
+      // Update in current state
+      final updatedMemories = state.memories.map((memory) {
         if (memory.id == memoryId) {
           return memory.copyWith(isFavorite: !memory.isFavorite);
         }
         return memory;
       }).toList();
 
-      state = state.copyWith(memories: memories);
+      state = state.copyWith(memories: updatedMemories);
     } catch (e) {
       state = state.copyWith(errorMessage: e.toString());
     }
@@ -99,8 +212,49 @@ class MemoryJournalNotifier extends StateNotifier<MemoryJournalState> {
     try {
       state = state.copyWith(isLoading: true, errorMessage: null);
 
-      // Remove from local state
-      final memories = state.memories.where((m) => m.id != memoryId).toList();
+      await _repository.deleteMemory(memoryId);
+
+      // Remove from current state
+      final updatedMemories =
+          state.memories.where((m) => m.id != memoryId).toList();
+
+      state = state.copyWith(
+        memories: updatedMemories,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  /// Search memories
+  Future<void> searchMemories(String query) async {
+    try {
+      state = state.copyWith(isLoading: true, errorMessage: null);
+
+      final memories = await _repository.searchMemories(query);
+
+      state = state.copyWith(
+        memories: memories,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  /// Get favorite memories
+  Future<void> getFavoriteMemories() async {
+    try {
+      state = state.copyWith(isLoading: true, errorMessage: null);
+
+      final memories = await _repository.getFavoriteMemories();
 
       state = state.copyWith(
         memories: memories,
@@ -118,22 +272,23 @@ class MemoryJournalNotifier extends StateNotifier<MemoryJournalState> {
   void clearError() {
     state = state.copyWith(errorMessage: null);
   }
+
+  /// Refresh memories
+  Future<void> refresh() async {
+    await loadMemories();
+  }
 }
 
-/// Provider for add memory use case
-final addMemoryUsecaseProvider = Provider<AddMemoryUsecase>((ref) {
-  throw UnimplementedError('AddMemoryUsecase must be provided');
+/// Hybrid repository provider
+final hybridMemoryRepositoryProvider = Provider<HybridMemoryRepository>((ref) {
+  final hiveService = ref.watch(hiveServiceProvider);
+  final firebaseUserService = ref.watch(firebaseUserServiceProvider);
+  return HybridMemoryRepository(hiveService, firebaseUserService);
 });
 
-/// Provider for get memories use case
-final getMemoriesUsecaseProvider = Provider<GetMemoriesUsecase>((ref) {
-  throw UnimplementedError('GetMemoriesUsecase must be provided');
-});
-
-/// Provider for memory journal notifier
-final memoryJournalProvider = StateNotifierProvider<MemoryJournalNotifier, MemoryJournalState>((ref) {
-  final addUsecase = ref.watch(addMemoryUsecaseProvider);
-  final getUsecase = ref.watch(getMemoriesUsecaseProvider);
-  
-  return MemoryJournalNotifier(addUsecase, getUsecase);
+/// Memory journal provider
+final memoryJournalProvider =
+    StateNotifierProvider<MemoryJournalNotifier, MemoryJournalState>((ref) {
+  final repository = ref.watch(hybridMemoryRepositoryProvider);
+  return MemoryJournalNotifier(repository);
 });

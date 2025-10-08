@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:io';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/baby_font.dart';
 import '../../../../core/theme/responsive_utils.dart';
 import '../../../../shared/widgets/optimized_widget.dart';
 import '../providers/memory_journal_provider.dart';
-import '../../domain/entities/memory_journal_entity.dart';
+import '../../data/models/memory_model.dart';
+import '../widgets/shimmer_widget.dart';
+import 'add_memory_screen.dart';
+import 'journey_preview_screen.dart';
 
 /// Memory Journal Screen
 /// Follows master plan theme standards and performance requirements
@@ -13,7 +17,8 @@ class MemoryJournalScreen extends OptimizedStatefulWidget {
   const MemoryJournalScreen({super.key});
 
   @override
-  OptimizedState<MemoryJournalScreen> createState() => _MemoryJournalScreenState();
+  OptimizedState<MemoryJournalScreen> createState() =>
+      _MemoryJournalScreenState();
 }
 
 class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
@@ -26,15 +31,15 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
       backgroundColor: AppTheme.scaffoldBackground,
       appBar: AppBar(
         title: OptimizedText(
-          'Memory Journal',
+          '💖 Our Memory Journal',
           style: BabyFont.headingM,
         ),
-        backgroundColor: AppTheme.primary,
+        backgroundColor: AppTheme.primaryPink,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
           IconButton(
-            onPressed: () => _showAddMemoryDialog(context, notifier),
+            onPressed: () => _navigateToAddMemory(context),
             icon: const Icon(Icons.add),
           ),
         ],
@@ -46,9 +51,10 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
             if (state.isLoading) ...[
               Expanded(child: _buildLoadingState()),
             ] else if (state.memories.isEmpty) ...[
-              Expanded(child: _buildEmptyState()),
+              Expanded(child: _buildEmptyState(context, notifier)),
             ] else ...[
-              Expanded(child: _buildMemoriesList(state.memories)),
+              Expanded(
+                  child: _buildMemoriesList(state.memories, context, notifier)),
             ],
             if (state.errorMessage != null) ...[
               _buildErrorMessage(state.errorMessage!, notifier),
@@ -77,7 +83,8 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(
+      BuildContext context, MemoryJournalNotifier notifier) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -85,7 +92,7 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
           Icon(
             Icons.book_outlined,
             size: context.responsiveHeight(12),
-            color: AppTheme.primary.withValues(alpha: 0.5),
+            color: AppTheme.primaryPink.withValues(alpha: 0.5),
           ),
           SizedBox(height: context.responsiveHeight(2)),
           OptimizedText(
@@ -105,7 +112,7 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
           SizedBox(height: context.responsiveHeight(3)),
           OptimizedButton(
             text: 'Add First Memory',
-            onPressed: () => _showAddMemoryDialog(context, ref.read(memoryJournalProvider.notifier)),
+            onPressed: () => _navigateToAddMemory(context),
             type: ButtonType.primary,
             size: ButtonSize.large,
             icon: const Icon(Icons.add),
@@ -115,38 +122,79 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
     );
   }
 
-  Widget _buildMemoriesList(List<MemoryJournalEntity> memories) {
+  Widget _buildMemoriesList(List<MemoryModel> memories, BuildContext context,
+      MemoryJournalNotifier notifier) {
     return Column(
       children: [
         _buildStatsHeader(memories),
         SizedBox(height: context.responsiveHeight(2)),
-        Expanded(
-          child: ListView.builder(
-            itemCount: memories.length,
-            itemBuilder: (context, index) {
-              final memory = memories[index];
-              return _buildMemoryCard(memory);
-            },
+        // Preview Journey Button
+        if (memories.isNotEmpty)
+          Container(
+            width: double.infinity,
+            margin: EdgeInsets.only(bottom: context.responsiveHeight(2)),
+            child: OptimizedButton(
+              text: 'Preview Your Journey 💞',
+              onPressed: () => _navigateToJourneyPreview(context),
+              type: ButtonType.primary,
+              size: ButtonSize.large,
+              icon: const Icon(Icons.route),
+            ),
           ),
+        Expanded(
+          child: memories.isEmpty
+              ? ListView.builder(
+                  itemCount: 3, // Show 3 shimmer cards
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding:
+                          EdgeInsets.only(bottom: context.responsiveHeight(1)),
+                      child: ShimmerCard(
+                        height: 120,
+                        borderRadius: context.responsiveRadius(16),
+                      ),
+                    );
+                  },
+                )
+              : ListView.builder(
+                  itemCount: memories.length,
+                  itemBuilder: (context, index) {
+                    final memory = memories[index];
+                    return _buildMemoryCard(memory, context, notifier);
+                  },
+                ),
         ),
       ],
     );
   }
 
-  Widget _buildStatsHeader(List<MemoryJournalEntity> memories) {
+  Widget _buildStatsHeader(List<MemoryModel> memories) {
     final totalMemories = memories.length;
     final favoriteMemories = memories.where((m) => m.isFavorite).length;
-    final thisMonth = memories.where((m) => 
-      m.createdAt.month == DateTime.now().month &&
-      m.createdAt.year == DateTime.now().year
-    ).length;
+    final thisMonth = memories
+        .where((m) =>
+            DateTime.fromMillisecondsSinceEpoch(m.timestamp).month ==
+                DateTime.now().month &&
+            DateTime.fromMillisecondsSinceEpoch(m.timestamp).year ==
+                DateTime.now().year)
+        .length;
 
     return Container(
       padding: context.responsivePadding,
       decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
+        gradient: LinearGradient(
+          colors: [AppTheme.primaryPink, AppTheme.primaryBlue],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(context.responsiveRadius(16)),
-        boxShadow: AppTheme.softShadow,
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryPink.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: Offset(0, 5),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -195,16 +243,23 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
     );
   }
 
-  Widget _buildMemoryCard(MemoryJournalEntity memory) {
+  Widget _buildMemoryCard(MemoryModel memory, BuildContext context,
+      MemoryJournalNotifier notifier) {
     return Container(
       margin: EdgeInsets.only(bottom: context.responsiveHeight(1)),
       padding: context.responsivePadding,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(context.responsiveRadius(12)),
-        boxShadow: AppTheme.softShadow,
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryPink.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
         border: Border.all(
-          color: _getMemoryTypeColor(memory.type).withValues(alpha: 0.3),
+          color: _getMoodColor(memory.mood).withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -212,6 +267,11 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
         children: [
           Row(
             children: [
+              Text(
+                memory.emoji,
+                style: TextStyle(fontSize: 24),
+              ),
+              SizedBox(width: context.responsiveWidth(2)),
               Expanded(
                 child: OptimizedText(
                   memory.title,
@@ -221,41 +281,45 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
               if (memory.isFavorite)
                 Icon(
                   Icons.favorite,
-                  color: AppTheme.accent,
+                  color: AppTheme.primaryPink,
                   size: context.responsiveFont(20),
                 ),
             ],
           ),
           SizedBox(height: context.responsiveHeight(1)),
           OptimizedText(
-            memory.content,
+            memory.description,
             style: BabyFont.bodyM.copyWith(
               color: AppTheme.textPrimary,
             ),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
-          if (memory.imagePaths.isNotEmpty) ...[
+          if (memory.photoPath != null) ...[
             SizedBox(height: context.responsiveHeight(1)),
-            SizedBox(
-              height: context.responsiveHeight(8),
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: memory.imagePaths.length,
-                itemBuilder: (context, index) {
-                  return Container(
-                    margin: EdgeInsets.only(right: context.responsiveWidth(1)),
-                    width: context.responsiveWidth(20),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(context.responsiveRadius(8)),
-                      color: AppTheme.primary.withValues(alpha: 0.1),
-                    ),
-                    child: Icon(
-                      Icons.image,
-                      color: AppTheme.primary,
-                    ),
-                  );
-                },
+            Container(
+              height: context.responsiveHeight(12),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius:
+                    BorderRadius.circular(context.responsiveRadius(8)),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryPink.withValues(alpha: 0.1),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius:
+                    BorderRadius.circular(context.responsiveRadius(8)),
+                child: Image.file(
+                  File(memory.photoPath!),
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                ),
               ),
             ),
           ],
@@ -268,13 +332,14 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
                   vertical: context.responsiveHeight(0.5),
                 ),
                 decoration: BoxDecoration(
-                  color: _getMemoryTypeColor(memory.type).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(context.responsiveRadius(12)),
+                  color: _getMoodColor(memory.mood).withValues(alpha: 0.1),
+                  borderRadius:
+                      BorderRadius.circular(context.responsiveRadius(12)),
                 ),
                 child: OptimizedText(
-                  _getMemoryTypeLabel(memory.type),
+                  _getMoodLabel(memory.mood),
                   style: BabyFont.bodyS.copyWith(
-                    color: _getMemoryTypeColor(memory.type),
+                    color: _getMoodColor(memory.mood),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -296,7 +361,8 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
               ],
               const Spacer(),
               OptimizedText(
-                _formatDate(memory.createdAt),
+                _formatDate(
+                    DateTime.fromMillisecondsSinceEpoch(memory.timestamp)),
                 style: BabyFont.bodyS.copyWith(
                   color: AppTheme.textSecondary,
                 ),
@@ -343,40 +409,6 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
     );
   }
 
-  Color _getMemoryTypeColor(MemoryType type) {
-    switch (type) {
-      case MemoryType.date:
-        return AppTheme.primary;
-      case MemoryType.anniversary:
-        return AppTheme.accent;
-      case MemoryType.vacation:
-        return AppTheme.boyColor;
-      case MemoryType.milestone:
-        return AppTheme.girlColor;
-      case MemoryType.everyday:
-        return AppTheme.textSecondary;
-      case MemoryType.special:
-        return Colors.purple;
-    }
-  }
-
-  String _getMemoryTypeLabel(MemoryType type) {
-    switch (type) {
-      case MemoryType.date:
-        return 'Date Night';
-      case MemoryType.anniversary:
-        return 'Anniversary';
-      case MemoryType.vacation:
-        return 'Vacation';
-      case MemoryType.milestone:
-        return 'Milestone';
-      case MemoryType.everyday:
-        return 'Everyday';
-      case MemoryType.special:
-        return 'Special';
-    }
-  }
-
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
@@ -392,184 +424,61 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
     }
   }
 
-  void _showAddMemoryDialog(BuildContext context, MemoryJournalNotifier notifier) {
-    showDialog(
-      context: context,
-      builder: (context) => _AddMemoryDialog(notifier: notifier),
-    );
-  }
-}
-
-/// Add memory dialog
-class _AddMemoryDialog extends OptimizedStatefulWidget {
-  final MemoryJournalNotifier notifier;
-
-  const _AddMemoryDialog({required this.notifier});
-
-  @override
-  OptimizedState<_AddMemoryDialog> createState() => _AddMemoryDialogState();
-}
-
-class _AddMemoryDialogState extends OptimizedState<_AddMemoryDialog> {
-  final _titleController = TextEditingController();
-  final _contentController = TextEditingController();
-  final _locationController = TextEditingController();
-  MemoryType _selectedType = MemoryType.everyday;
-  final List<String> _tags = [];
-
-  @override
-  Widget buildOptimized(BuildContext context, WidgetRef ref) {
-    return AlertDialog(
-      title: OptimizedText(
-        'Add Memory',
-        style: BabyFont.headingM,
-      ),
-      content: SizedBox(
-        width: context.responsiveWidth(80),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildTitleField(),
-              SizedBox(height: context.responsiveHeight(2)),
-              _buildContentField(),
-              SizedBox(height: context.responsiveHeight(2)),
-              _buildTypeSelector(),
-              SizedBox(height: context.responsiveHeight(2)),
-              _buildLocationField(),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        OptimizedButton(
-          text: 'Cancel',
-          onPressed: () => Navigator.of(context).pop(),
-          type: ButtonType.outline,
-        ),
-        OptimizedButton(
-          text: 'Save',
-          onPressed: _saveMemory,
-          type: ButtonType.primary,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTitleField() {
-    return TextField(
-      controller: _titleController,
-      decoration: InputDecoration(
-        labelText: 'Title',
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(context.responsiveRadius(8)),
-        ),
+  // Navigation methods
+  void _navigateToAddMemory(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AddMemoryScreen(),
       ),
     );
   }
 
-  Widget _buildContentField() {
-    return TextField(
-      controller: _contentController,
-      maxLines: 3,
-      decoration: InputDecoration(
-        labelText: 'Content',
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(context.responsiveRadius(8)),
-        ),
+  void _navigateToJourneyPreview(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const JourneyPreviewScreen(),
       ),
     );
   }
 
-  Widget _buildTypeSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        OptimizedText(
-          'Type',
-          style: BabyFont.bodyM.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        SizedBox(height: context.responsiveHeight(1)),
-        Wrap(
-          spacing: context.responsiveWidth(1),
-          children: MemoryType.values.map((type) {
-            final isSelected = _selectedType == type;
-            return GestureDetector(
-              onTap: () => setState(() => _selectedType = type),
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: context.responsiveWidth(2),
-                  vertical: context.responsiveHeight(0.5),
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppTheme.primary : AppTheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(context.responsiveRadius(20)),
-                ),
-                child: OptimizedText(
-                  _getMemoryTypeLabel(type),
-                  style: BabyFont.bodyS.copyWith(
-                    color: isSelected ? Colors.white : AppTheme.primary,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLocationField() {
-    return TextField(
-      controller: _locationController,
-      decoration: InputDecoration(
-        labelText: 'Location (optional)',
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(context.responsiveRadius(8)),
-        ),
-      ),
-    );
-  }
-
-  void _saveMemory() {
-    if (_titleController.text.isEmpty || _contentController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: OptimizedText('Please fill in all required fields'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+  // Mood helper methods
+  Color _getMoodColor(String mood) {
+    switch (mood.toLowerCase()) {
+      case 'happy':
+        return Colors.green;
+      case 'excited':
+        return Colors.orange;
+      case 'romantic':
+        return Colors.pink;
+      case 'grateful':
+        return Colors.purple;
+      case 'peaceful':
+        return Colors.blue;
+      case 'nostalgic':
+        return Colors.indigo;
+      default:
+        return AppTheme.primaryPink;
     }
-
-    final request = MemoryJournalRequest(
-      title: _titleController.text,
-      content: _contentController.text,
-      type: _selectedType,
-      location: _locationController.text.isEmpty ? null : _locationController.text,
-      tags: _tags,
-    );
-
-    widget.notifier.addMemory(request);
-    Navigator.of(context).pop();
   }
 
-  String _getMemoryTypeLabel(MemoryType type) {
-    switch (type) {
-      case MemoryType.date:
-        return 'Date Night';
-      case MemoryType.anniversary:
-        return 'Anniversary';
-      case MemoryType.vacation:
-        return 'Vacation';
-      case MemoryType.milestone:
-        return 'Milestone';
-      case MemoryType.everyday:
-        return 'Everyday';
-      case MemoryType.special:
-        return 'Special';
+  String _getMoodLabel(String mood) {
+    switch (mood.toLowerCase()) {
+      case 'happy':
+        return 'Happy';
+      case 'excited':
+        return 'Excited';
+      case 'romantic':
+        return 'Romantic';
+      case 'grateful':
+        return 'Grateful';
+      case 'peaceful':
+        return 'Peaceful';
+      case 'nostalgic':
+        return 'Nostalgic';
+      default:
+        return 'Happy';
     }
   }
 }

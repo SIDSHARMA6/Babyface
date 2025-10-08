@@ -3,14 +3,28 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'core/theme/app_theme.dart';
-import 'features/app/presentation/screens/splash_screen.dart';
+import 'core/navigation/app_controller.dart';
 import 'shared/services/hive_service.dart';
+import 'shared/services/firebase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Hive for ultra-fast local storage
+  // Initialize Hive for ultra-fast local storage first
+  print('🔐 [Main] Starting Hive initialization...');
   await HiveService.initialize();
+  print('✅ [Main] Hive initialization completed');
+
+  // Initialize Firebase
+  print('🚀 [Main] Starting Firebase initialization...');
+  try {
+    await FirebaseService().initialize();
+    print('✅ [Main] Firebase initialized successfully');
+  } catch (e) {
+    print('❌ [Main] Firebase initialization failed: $e');
+    print('❌ [Main] Error type: ${e.runtimeType}');
+    // App will continue with limited functionality
+  }
 
   // Set preferred orientations for optimal performance
   await SystemChrome.setPreferredOrientations([
@@ -52,13 +66,12 @@ class FutureBabyApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: ThemeMode.system,
-          home: const SplashScreen(),
+          home: const AppController(),
           // Performance optimizations
           builder: (context, child) {
             return MediaQuery(
               data: MediaQuery.of(context).copyWith(
-                textScaler:
-                    TextScaler.noScaling, // Prevent text scaling issues
+                textScaler: TextScaler.noScaling, // Prevent text scaling issues
               ),
               child: child!,
             );

@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can only access their own data
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Memory journals - users can only access their own
+    match /memory_journals/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Baby generations - users can only access their own
+    match /baby_generations/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // User logins - users can only access their own
+    match /user_logins/{loginId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // User activities - users can only access their own
+    match /user_activities/{activityId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // Sharing links - public read, owner write
+    match /sharing_links/{sharingId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // Sharing events - public read, authenticated write
+    match /sharing_events/{eventId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // Caption generations - users can only access their own
+    match /caption_generations/{generationId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // Sharing reports - admin only
+    match /sharing_reports/{reportId} {
+      allow read, write: if false; // Admin only via Cloud Functions
+    }
+  }
+}
+

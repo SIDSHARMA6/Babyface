@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:io';
 import '../services/hive_service.dart';
 import '../services/firebase_service.dart';
 import '../services/analytics_service.dart';
@@ -16,7 +17,7 @@ import '../services/history_service.dart';
 import '../services/quiz_service.dart';
 import '../models/baby_result.dart';
 import '../models/user_profile.dart';
-import '../models/avatar_data.dart';
+import '../providers/login_provider.dart';
 
 /// Core service providers
 final hiveServiceProvider = Provider<HiveService>((ref) {
@@ -36,7 +37,8 @@ final babyGenerationServiceProvider = Provider<BabyGenerationService>((ref) {
   return BabyGenerationService();
 });
 
-final aiBabyGenerationServiceProvider = Provider<AIBabyGenerationService>((ref) {
+final aiBabyGenerationServiceProvider =
+    Provider<AIBabyGenerationService>((ref) {
   return AIBabyGenerationService();
 });
 
@@ -49,11 +51,13 @@ final faceDetectionServiceProvider = Provider<FaceDetectionService>((ref) {
   return FaceDetectionService();
 });
 
-final featureExtractionServiceProvider = Provider<FeatureExtractionService>((ref) {
+final featureExtractionServiceProvider =
+    Provider<FeatureExtractionService>((ref) {
   return FeatureExtractionService();
 });
 
-final indianAdaptationServiceProvider = Provider<IndianAdaptationService>((ref) {
+final indianAdaptationServiceProvider =
+    Provider<IndianAdaptationService>((ref) {
   return IndianAdaptationService();
 });
 
@@ -120,11 +124,12 @@ class UserProfileNotifier extends StateNotifier<UserProfileState> {
   Future<void> _loadProfile() async {
     try {
       state = state.copyWith(isLoading: true, error: null);
-      
+
       final profileData = _hiveService.retrieve(_boxName, _profileKey);
       if (profileData != null) {
         // Convert Map to UserProfile
-        final profile = UserProfile.fromMap(Map<String, dynamic>.from(profileData));
+        final profile =
+            UserProfile.fromMap(Map<String, dynamic>.from(profileData));
         state = state.copyWith(profile: profile, isLoading: false);
       } else {
         state = state.copyWith(isLoading: false);
@@ -137,7 +142,7 @@ class UserProfileNotifier extends StateNotifier<UserProfileState> {
   Future<void> updateProfile(UserProfile profile) async {
     try {
       state = state.copyWith(isLoading: true, error: null);
-      
+
       await _hiveService.store(_boxName, _profileKey, profile.toMap());
       state = state.copyWith(profile: profile, isLoading: false);
     } catch (e) {
@@ -156,7 +161,8 @@ class UserProfileNotifier extends StateNotifier<UserProfileState> {
 }
 
 /// User profile provider
-final userProfileProvider = StateNotifierProvider<UserProfileNotifier, UserProfileState>((ref) {
+final userProfileProvider =
+    StateNotifierProvider<UserProfileNotifier, UserProfileState>((ref) {
   final hiveService = ref.watch(hiveServiceProvider);
   return UserProfileNotifier(hiveService);
 });
@@ -196,11 +202,10 @@ class BabyGenerationState {
 
 /// Baby generation notifier
 class BabyGenerationNotifier extends StateNotifier<BabyGenerationState> {
-  final AdvancedAIBabyService _aiService;
   final HiveService _hiveService;
   static const String _boxName = 'baby_results';
 
-  BabyGenerationNotifier(this._aiService, this._hiveService) 
+  BabyGenerationNotifier(this._hiveService)
       : super(const BabyGenerationState()) {
     _loadResults();
   }
@@ -227,27 +232,43 @@ class BabyGenerationNotifier extends StateNotifier<BabyGenerationState> {
     try {
       state = state.copyWith(isGenerating: true, progress: 0.0, error: null);
 
-      final result = await _aiService.generateBaby(
-        maleImagePath: maleImagePath,
-        femaleImagePath: femaleImagePath,
-        alphaBlend: alphaBlend,
-        style: style,
-        ageMonths: ageMonths,
-        onProgress: (progress) {
-          state = state.copyWith(progress: progress);
-        },
+      // Convert image paths to File objects
+      final malePhoto = File(maleImagePath);
+      final femalePhoto = File(femaleImagePath);
+
+      // Call the correct method with proper parameters
+      final result = await AdvancedAIBabyService.generateBabyWithBlend(
+        malePhoto: malePhoto,
+        femalePhoto: femalePhoto,
+        maleName: 'Male Parent',
+        femaleName: 'Female Parent',
+        alpha: alphaBlend,
+        indianRegion: 'North India',
+        ageGroup: _getAgeGroup(ageMonths),
+        gender: 'mixed',
+        adaptationStrength: 0.8,
+      );
+
+      // Convert AdvancedBabyResult to BabyResult for compatibility
+      final babyResult = BabyResult(
+        id: 'baby_${DateTime.now().millisecondsSinceEpoch}',
+        babyImagePath: result.babyImagePath,
+        maleMatchPercentage: (alphaBlend * 100).round(),
+        femaleMatchPercentage: ((1 - alphaBlend) * 100).round(),
+        createdAt: DateTime.now(),
+        isProcessing: false,
       );
 
       // Save to Hive
-      await _hiveService.store(_boxName, result.id, result.toMap());
+      await _hiveService.store(_boxName, babyResult.id, babyResult.toMap());
 
       // Update state
-      final updatedResults = [...state.results, result];
+      final updatedResults = [...state.results, babyResult];
       state = state.copyWith(
         results: updatedResults,
         isGenerating: false,
         progress: 1.0,
-        currentResult: result,
+        currentResult: babyResult,
       );
     } catch (e) {
       state = state.copyWith(
@@ -257,10 +278,18 @@ class BabyGenerationNotifier extends StateNotifier<BabyGenerationState> {
     }
   }
 
+  String _getAgeGroup(int ageMonths) {
+    if (ageMonths <= 6) return 'newborn';
+    if (ageMonths <= 12) return 'infant';
+    if (ageMonths <= 24) return 'toddler';
+    return 'child';
+  }
+
   Future<void> deleteResult(String resultId) async {
     try {
       await _hiveService.delete(_boxName, resultId);
-      final updatedResults = state.results.where((r) => r.id != resultId).toList();
+      final updatedResults =
+          state.results.where((r) => r.id != resultId).toList();
       state = state.copyWith(results: updatedResults);
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -273,10 +302,10 @@ class BabyGenerationNotifier extends StateNotifier<BabyGenerationState> {
 }
 
 /// Baby generation provider
-final babyGenerationProvider = StateNotifierProvider<BabyGenerationNotifier, BabyGenerationState>((ref) {
-  final aiService = ref.watch(advancedAIBabyServiceProvider);
+final babyGenerationProvider =
+    StateNotifierProvider<BabyGenerationNotifier, BabyGenerationState>((ref) {
   final hiveService = ref.watch(hiveServiceProvider);
-  return BabyGenerationNotifier(aiService, hiveService);
+  return BabyGenerationNotifier(hiveService);
 });
 
 /// App settings state
@@ -401,7 +430,8 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
 }
 
 /// App settings provider
-final appSettingsProvider = StateNotifierProvider<AppSettingsNotifier, AppSettingsState>((ref) {
+final appSettingsProvider =
+    StateNotifierProvider<AppSettingsNotifier, AppSettingsState>((ref) {
   final hiveService = ref.watch(hiveServiceProvider);
   return AppSettingsNotifier(hiveService);
 });
@@ -437,7 +467,7 @@ class AnalyticsNotifier extends StateNotifier<AnalyticsState> {
   final HiveService _hiveService;
   static const String _boxName = 'analytics_events';
 
-  AnalyticsNotifier(this._analyticsService, this._hiveService) 
+  AnalyticsNotifier(this._analyticsService, this._hiveService)
       : super(const AnalyticsState()) {
     _loadEvents();
   }
@@ -451,7 +481,8 @@ class AnalyticsNotifier extends StateNotifier<AnalyticsState> {
     }
   }
 
-  Future<void> trackEvent(String eventName, Map<String, dynamic> parameters) async {
+  Future<void> trackEvent(
+      String eventName, Map<String, dynamic> parameters) async {
     if (!state.isEnabled) return;
 
     try {
@@ -461,15 +492,20 @@ class AnalyticsNotifier extends StateNotifier<AnalyticsState> {
         'timestamp': DateTime.now().toIso8601String(),
       };
 
-      await _hiveService.store(_boxName, '${eventName}_${DateTime.now().millisecondsSinceEpoch}', event);
-      
+      await _hiveService.store(_boxName,
+          '${eventName}_${DateTime.now().millisecondsSinceEpoch}', event);
+
       final updatedEvents = Map<String, dynamic>.from(state.events);
-      updatedEvents['${eventName}_${DateTime.now().millisecondsSinceEpoch}'] = event;
-      
+      updatedEvents['${eventName}_${DateTime.now().millisecondsSinceEpoch}'] =
+          event;
+
       state = state.copyWith(events: updatedEvents);
-      
+
       // Send to analytics service
-      await _analyticsService.trackEvent(eventName, parameters);
+      await _analyticsService.trackCustomEvent(
+        eventName: eventName,
+        parameters: parameters,
+      );
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -481,20 +517,25 @@ class AnalyticsNotifier extends StateNotifier<AnalyticsState> {
 }
 
 /// Analytics provider
-final analyticsProvider = StateNotifierProvider<AnalyticsNotifier, AnalyticsState>((ref) {
+final analyticsProvider =
+    StateNotifierProvider<AnalyticsNotifier, AnalyticsState>((ref) {
   final analyticsService = ref.watch(analyticsServiceProvider);
   final hiveService = ref.watch(hiveServiceProvider);
   return AnalyticsNotifier(analyticsService, hiveService);
 });
 
-/// Current user ID provider (for demo purposes)
+/// Current user ID provider
 final currentUserIdProvider = Provider<String>((ref) {
-  return 'user_${DateTime.now().millisecondsSinceEpoch}';
+  // Get user ID from login state
+  final loginState = ref.watch(loginProvider);
+  return loginState.user?.id ?? 'anonymous_user';
 });
 
-/// Current couple ID provider (for demo purposes)
+/// Current couple ID provider
 final currentCoupleIdProvider = Provider<String>((ref) {
-  return 'couple_${DateTime.now().millisecondsSinceEpoch}';
+  // Get couple ID from user profile
+  final userProfile = ref.watch(userProfileProvider);
+  return userProfile.profile?.id ?? 'anonymous_couple';
 });
 
 /// App theme provider

@@ -22,6 +22,8 @@ import '../../shared/models/baby_result.dart';
 // Engagement Features screens
 import '../../features/engagement_features/presentation/screens/baby_name_generator_screen.dart';
 import '../../features/engagement_features/presentation/screens/memory_journal_screen.dart';
+import '../../features/engagement_features/presentation/screens/add_memory_screen.dart';
+import '../../features/engagement_features/presentation/screens/journey_preview_screen.dart';
 import '../../features/engagement_features/presentation/screens/couple_challenges_screen.dart';
 import '../../features/engagement_features/presentation/screens/growth_timeline_screen.dart';
 import '../../features/engagement_features/presentation/screens/anniversary_tracker_screen.dart';
@@ -125,6 +127,35 @@ class AppRouter {
             path: 'memory-journal',
             name: 'memory-journal',
             builder: (context, state) => const MemoryJournalScreen(),
+          ),
+          GoRoute(
+            path: 'add-memory',
+            name: 'add-memory',
+            builder: (context, state) => const AddMemoryScreen(),
+          ),
+          GoRoute(
+            path: 'memory-detail',
+            name: 'memory-detail',
+            builder: (context, state) {
+              final memoryId = state.uri.queryParameters['id'];
+              if (memoryId == null) {
+                return const Scaffold(
+                  body: Center(child: Text('Memory not found')),
+                );
+              }
+              // TODO: Implement proper memory fetching by ID
+              // For now, show a loading screen
+              return const Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            },
+          ),
+          GoRoute(
+            path: 'journey-preview',
+            name: 'journey-preview',
+            builder: (context, state) => const JourneyPreviewScreen(),
           ),
           GoRoute(
             path: 'couple-challenges',

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/baby_font.dart';
 import 'main_navigation_screen.dart';
+import '../../../login/presentation/screens/login_screen.dart';
 
 /// Ultra-fast immersive onboarding with zero ANR
 /// - Edge-to-edge design with system UI optimization
@@ -127,17 +128,22 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   Future<void> _complete() async {
     try {
+      print('🔐 [OnboardingScreen] Completing onboarding...');
+      
       // Save onboarding completion status
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('has_seen_onboarding', true);
+      
+      print('🔐 [OnboardingScreen] Onboarding completion saved to SharedPreferences');
 
-      // Navigate to main app
+      // Navigate to login screen after onboarding
       if (mounted) {
+        print('🔐 [OnboardingScreen] Navigating to LoginScreen...');
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
-                const MainNavigationScreen(),
+                const LoginScreen(),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
               return FadeTransition(
