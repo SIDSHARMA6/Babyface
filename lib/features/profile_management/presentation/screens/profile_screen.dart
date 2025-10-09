@@ -1,122 +1,376 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/baby_font.dart';
-import '../../../../shared/widgets/animated_heart';
+import '../../../../shared/widgets/animated_heart.dart';
 import '../../../../shared/widgets/toast_service.dart';
+import '../../../../shared/providers/login_provider.dart';
+import '../../../../shared/models/profile_section.dart';
+import '../../../../shared/services/bond_profile_service.dart';
+import '../../../../shared/services/app_data_service.dart';
+import '../../../../shared/services/dynamic_profile_service.dart';
+import '../../../../shared/services/performance_service.dart';
+import '../widgets/profile_header_widget.dart';
+import '../widgets/profile_stats_widget.dart';
+import '../widgets/couple_profile_widget.dart';
+import '../widgets/achievements_widget.dart';
+import '../widgets/settings_widget.dart';
+import '../widgets/premium_widget.dart';
+import '../widgets/mood_tracking_widget.dart';
+import '../widgets/love_notes_widget.dart';
+import '../widgets/couple_gallery_widget.dart';
+import '../widgets/bond_level_widget.dart';
+import '../widgets/theme_selector_widget.dart';
+import '../widgets/favorite_moments_carousel_widget.dart';
+import '../widgets/zodiac_compatibility_widget.dart';
+import '../widgets/ai_mood_assistant_widget.dart';
 
 /// Ultra-fast Profile Screen with zero ANR
 /// - Beautiful couple profile management
 /// - Optimized performance and smooth animations
 /// - Sub-1s response time for all interactions
-class ProfileScreen extends StatefulWidget {
+/// - Connected to login provider for real data
+/// - Clean architecture with modular widgets
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen>
+class _ProfileScreenState extends ConsumerState<ProfileScreen>
     with TickerProviderStateMixin {
   late final AnimationController _fadeController;
-  late final AnimationController _heartController;
-  late final AnimationController _floatingController;
   late final Animation<double> _fadeAnimation;
-  late final Animation<double> _heartAnimation;
-  late final Animation<double> _floatingAnimation;
 
-  // Profile data
-  final String _userName = 'Alex & Sarah';
-  final String _relationshipStatus = 'In Love';
-  final int _relationshipDays = 365;
-  final int _babiesGenerated = 12;
-  final int _memoriesCreated = 28;
-  final int _achievementsUnlocked = 8;
-  final double _loveScore = 95.0;
-  final bool _isPremium = false;
-  bool _notificationsEnabled = true;
-  bool _darkModeEnabled = false;
+  // State management
+  String? _bondName;
+  String? _bondImagePath;
+  int _daysTogether = 0;
+  List<ProfileSection> _profileSections = [];
+  bool _isLoadingSections = false;
 
   @override
   void initState() {
     super.initState();
     _initAnimations();
+    _loadDataAsync();
+
+    // Start performance monitoring for this screen
+    PerformanceService.instance.startMonitoring();
   }
 
   void _initAnimations() {
     _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-
-    _heartController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-
-    _floatingController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    );
-
     _fadeAnimation = CurvedAnimation(
       parent: _fadeController,
-      curve: Curves.easeInOut,
+      curve: Curves.easeOutCubic,
     );
-
-    _heartAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.2,
-    ).animate(CurvedAnimation(
-      parent: _heartController,
-      curve: Curves.elasticInOut,
-    ));
-
-    _floatingAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _floatingController,
-      curve: Curves.easeInOut,
-    ));
-
     _fadeController.forward();
-    _heartController.repeat(reverse: true);
-    _floatingController.repeat(reverse: true);
+  }
+
+  void _loadDataAsync() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadBondProfile();
+        _loadProfileStats();
+        _loadDynamicSections();
+      }
+    });
+  }
+
+  /// Load real profile statistics from services
+  Future<void> _loadProfileStats() async {
+    try {
+      final stats = await AppDataService.instance.getProfileStats();
+
+      if (mounted) {
+        setState(() {
+          _daysTogether = stats['daysTogether'] ?? 0;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _daysTogether = 0;
+        });
+      }
+      developer.log('Error loading profile stats: $e');
+    }
+  }
+
+  /// Load bond profile data from SharedPreferences
+  Future<void> _loadBondProfile() async {
+    try {
+      final bondName = await BondProfileService.instance.getBondName();
+      final bondImagePath =
+          await BondProfileService.instance.getBondImagePath();
+
+      if (mounted) {
+        setState(() {
+          _bondName = bondName;
+          _bondImagePath = bondImagePath;
+        });
+      }
+    } catch (e) {
+      ToastService.showError(
+          context, 'Failed to load bond profile: ${e.toString()}');
+    }
+  }
+
+  /// Show bond profile editing dialog
+  void _showBondProfileEditor() {
+    final nameController = TextEditingController(text: _bondName ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Edit Bond Profile 💕',
+          style: BabyFont.headingM.copyWith(
+            color: AppTheme.primaryPink,
+            fontWeight: BabyFont.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Bond Image Section
+            GestureDetector(
+              onTap: _selectBondImage,
+              child: Container(
+                width: 120.w,
+                height: 120.w,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppTheme.primaryPink,
+                    width: 3.w,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primaryPink.withValues(alpha: 0.3),
+                      blurRadius: 10.r,
+                      offset: Offset(0, 4.h),
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: _bondImagePath != null
+                      ? Image.file(
+                          File(_bondImagePath!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _buildDefaultBondImage();
+                          },
+                        )
+                      : _buildDefaultBondImage(),
+                ),
+              ),
+            ),
+            SizedBox(height: 16.h),
+            Text(
+              'Tap to change bond image',
+              style: BabyFont.bodyS.copyWith(
+                color: AppTheme.textSecondary,
+              ),
+            ),
+            SizedBox(height: 20.h),
+
+            // Bond Name Input
+            TextField(
+              controller: nameController,
+              decoration: InputDecoration(
+                labelText: 'Bond Name',
+                hintText: 'e.g., "Lovebirds", "Sweethearts"',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16.r),
+                ),
+                prefixIcon: const Icon(Icons.favorite_border),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => _saveBondProfile(nameController.text),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryPink,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Select bond image from gallery or camera
+  Future<void> _selectBondImage() async {
+    try {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Select Bond Image'),
+          content: Text('Choose how you want to add the bond image'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+              child: Text('Camera 📷'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+              child: Text('Gallery 🖼️'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      ToastService.showError(
+          context, 'Failed to select image: ${e.toString()}');
+    }
+  }
+
+  /// Pick image from source
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        final imageFile = File(image.path);
+        final savedPath =
+            await BondProfileService.instance.saveBondImage(imageFile);
+
+        if (savedPath != null && mounted) {
+          setState(() {
+            _bondImagePath = savedPath;
+          });
+          ToastService.showSuccess(context, 'Bond image updated! 📸✨');
+        } else {
+          ToastService.showError(context, 'Failed to save bond image');
+        }
+      }
+    } catch (e) {
+      ToastService.showError(context, 'Failed to pick image: ${e.toString()}');
+    }
+  }
+
+  /// Save bond profile data
+  Future<void> _saveBondProfile(String name) async {
+    try {
+      final success = await BondProfileService.instance.saveBondName(name);
+
+      if (success && mounted) {
+        setState(() {
+          _bondName = name;
+        });
+        Navigator.pop(context);
+        ToastService.showSuccess(context, 'Bond profile saved! 💕✨');
+      } else {
+        ToastService.showError(context, 'Failed to save bond profile');
+      }
+    } catch (e) {
+      ToastService.showError(
+          context, 'Failed to save bond profile: ${e.toString()}');
+    }
+  }
+
+  /// Load dynamic profile sections
+  Future<void> _loadDynamicSections() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingSections = true;
+    });
+
+    try {
+      final sections =
+          await DynamicProfileService.instance.getEnabledSections();
+
+      if (mounted) {
+        setState(() {
+          _profileSections = sections;
+          _isLoadingSections = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _profileSections = [];
+          _isLoadingSections = false;
+        });
+      }
+    }
+  }
+
+  /// Build default bond image widget
+  Widget _buildDefaultBondImage() {
+    return Container(
+      color: AppTheme.primaryPink.withValues(alpha: 0.1),
+      child: Icon(
+        Icons.favorite,
+        size: 50.w,
+        color: AppTheme.primaryPink,
+      ),
+    );
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
-    _heartController.dispose();
-    _floatingController.dispose();
+    // Stop performance monitoring
+    PerformanceService.instance.stopMonitoring();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final loginState = ref.watch(loginProvider);
+    final user = loginState.user;
+
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
-      appBar: _buildAppBar(),
       body: Stack(
         children: [
-          // Animated hearts background
-          const Positioned.fill(
-            child: AnimatedHearts(),
-          ),
-          // Main content
+          const Positioned.fill(child: AnimatedHearts()),
           FadeTransition(
             opacity: _fadeAnimation,
             child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
               slivers: [
-                _buildProfileHeader(),
-                _buildProfileStats(),
-                _buildCoupleProfile(),
-                _buildAchievementsSection(),
-                _buildSettingsSection(),
-                _buildPremiumSection(),
-                SliverToBoxAdapter(child: SizedBox(height: 20.h)),
+                ProfileHeaderWidget(
+                  user: user,
+                  bondName: _bondName,
+                  bondImagePath: _bondImagePath,
+                  daysTogether: _daysTogether,
+                  onEditProfile: _showBondProfileEditor,
+                  onShowSettings: _showProfileSettings,
+                ),
+                _buildOptimizedContent(),
               ],
             ),
           ),
@@ -125,229 +379,96 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      title: Text(
-        'Our Profile 💕',
-        style: BabyFont.displayMedium.copyWith(
-          color: AppTheme.primaryPink,
-          fontWeight: BabyFont.bold,
-        ),
-      ),
-      centerTitle: true,
-      actions: [
-        IconButton(
-          onPressed: _showEditProfile,
-          icon: Icon(
-            Icons.edit_rounded,
-            color: AppTheme.primaryPink,
-            size: 24.w,
-          ),
-        ),
-        IconButton(
-          onPressed: _showProfileSettings,
-          icon: Icon(
-            Icons.settings_rounded,
-            color: AppTheme.primaryPink,
-            size: 24.w,
-          ),
-        ),
-      ],
+  /// Build optimized content with lazy loading
+  Widget _buildOptimizedContent() {
+    return SliverList(
+      delegate: SliverChildListDelegate([
+        const ProfileStatsWidget(),
+        const CoupleProfileWidget(),
+        _buildDynamicSectionsWidget(),
+        const AchievementsWidget(),
+        const SettingsWidget(),
+        const PremiumWidget(),
+        SizedBox(height: 20.h),
+      ]),
     );
   }
 
-  Widget _buildProfileHeader() {
-    return SliverToBoxAdapter(
-      child: Padding(
+  /// Build dynamic profile sections as optimized widget
+  Widget _buildDynamicSectionsWidget() {
+    if (_isLoadingSections) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+        child: Center(
+          child: CircularProgressIndicator(
+            color: AppTheme.primaryPink,
+            strokeWidth: 2.0,
+          ),
+        ),
+      );
+    }
+
+    if (_profileSections.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return Column(
+      children: _profileSections
+          .map((section) => _buildDynamicSectionCard(section))
+          .toList(),
+    );
+  }
+
+  /// Build empty state for dynamic sections
+  Widget _buildEmptyState() {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+      child: Container(
         padding: EdgeInsets.all(20.w),
-        child: Container(
-          padding: EdgeInsets.all(24.w),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                AppTheme.primaryPink.withValues(alpha: 0.1),
-                AppTheme.primaryBlue.withValues(alpha: 0.1),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16.r),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryPink.withValues(alpha: 0.1),
+              blurRadius: 10.r,
+              offset: Offset(0, 3.h),
             ),
-            borderRadius: BorderRadius.circular(20.r),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primaryPink.withValues(alpha: 0.1),
-                blurRadius: 15.r,
-                offset: Offset(0, 5.h),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  AnimatedBuilder(
-                    animation: _floatingAnimation,
-                    builder: (context, child) {
-                      return Transform.translate(
-                        offset: Offset(0, _floatingAnimation.value * 5.h),
-                        child: AnimatedBuilder(
-                          animation: _heartAnimation,
-                          builder: (context, child) {
-                            return Transform.scale(
-                              scale: _heartAnimation.value,
-                              child: Icon(
-                                Icons.favorite_rounded,
-                                color: AppTheme.primaryPink,
-                                size: 32.w,
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _userName,
-                          style: BabyFont.headingM.copyWith(
-                            color: AppTheme.primaryPink,
-                            fontWeight: BabyFont.bold,
-                          ),
-                        ),
-                        SizedBox(height: 4.h),
-                        Text(
-                          _relationshipStatus,
-                          style: BabyFont.bodyS.copyWith(
-                            color: AppTheme.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentYellow.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12.r),
-                    ),
-                    child: Text(
-                      '${_loveScore.toInt()}% Love',
-                      style: BabyFont.bodyS.copyWith(
-                        color: AppTheme.accentYellow,
-                        fontWeight: BabyFont.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16.h),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildHeaderStat(
-                        'Days Together', '$_relationshipDays', '📅'),
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: _buildHeaderStat(
-                        'Babies Created', '$_babiesGenerated', '👶'),
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child:
-                        _buildHeaderStat('Memories', '$_memoriesCreated', '📸'),
-                  ),
-                ],
-              ),
-            ],
-          ),
+          ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildHeaderStat(String label, String value, String emoji) {
-    return Container(
-      padding: EdgeInsets.all(12.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12.r),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primaryPink.withValues(alpha: 0.1),
-            blurRadius: 8.r,
-            offset: Offset(0, 2.h),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Text(
-            emoji,
-            style: TextStyle(fontSize: 16.sp),
-          ),
-          SizedBox(height: 4.h),
-          Text(
-            value,
-            style: BabyFont.headingS.copyWith(
-              fontSize: 14.sp,
+        child: Column(
+          children: [
+            Icon(
+              Icons.add_circle_outline,
+              size: 48.w,
               color: AppTheme.primaryPink,
             ),
-          ),
-          SizedBox(height: 2.h),
-          Text(
-            label,
-            style: BabyFont.bodyS.copyWith(
-              fontSize: 8.sp,
-              color: AppTheme.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileStats() {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 20.w),
-        child: Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                'Achievements',
-                '$_achievementsUnlocked',
-                Icons.emoji_events,
-                AppTheme.accentYellow,
-                '🏆',
+            SizedBox(height: 12.h),
+            Text(
+              'Add Custom Sections',
+              style: BabyFont.headingS.copyWith(
+                color: AppTheme.primaryPink,
               ),
             ),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: _buildStatCard(
-                'Love Score',
-                '${_loveScore.toInt()}%',
-                Icons.favorite,
-                AppTheme.primaryPink,
-                '💕',
+            SizedBox(height: 8.h),
+            Text(
+              'Personalize your profile with custom sections',
+              style: BabyFont.bodyS.copyWith(
+                color: AppTheme.textSecondary,
               ),
+              textAlign: TextAlign.center,
             ),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: _buildStatCard(
-                'Status',
-                _isPremium ? 'Premium' : 'Free',
-                Icons.star,
-                AppTheme.primaryBlue,
-                '⭐',
+            SizedBox(height: 16.h),
+            ElevatedButton(
+              onPressed: _showAddSectionDialog,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryPink,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
               ),
+              child: Text('Add Section'),
             ),
           ],
         ),
@@ -355,597 +476,207 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildStatCard(
-      String label, String value, IconData icon, Color color, String emoji) {
+  /// Build individual dynamic section card with optimized performance
+  Widget _buildDynamicSectionCard(ProfileSection section) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
+      margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
+      child: _getSectionWidget(section),
+    );
+  }
+
+  /// Get appropriate widget for section type
+  Widget _getSectionWidget(ProfileSection section) {
+    switch (section.type) {
+      case ProfileSectionType.moodTracker:
+        return const MoodTrackingWidget();
+      case ProfileSectionType.loveNotes:
+        return const LoveNotesWidget();
+      case ProfileSectionType.coupleGallery:
+        return const CoupleGalleryWidget();
+      case ProfileSectionType.bondLevel:
+        return const BondLevelWidget();
+      case ProfileSectionType.themeSelector:
+        return const ThemeSelectorWidget();
+      case ProfileSectionType.favoriteMoments:
+        return const FavoriteMomentsCarouselWidget();
+      case ProfileSectionType.zodiacCompatibility:
+        return const ZodiacCompatibilityWidget();
+      case ProfileSectionType.aiMoodAssistant:
+        return const AIMoodAssistantWidget();
+      default:
+        return _buildCustomSectionCard(section);
+    }
+  }
+
+  /// Build custom section card
+  Widget _buildCustomSectionCard(ProfileSection section) {
     return Container(
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15.r),
+        borderRadius: BorderRadius.circular(16.r),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha: 0.1),
+            color: AppTheme.primaryPink.withValues(alpha: 0.1),
             blurRadius: 10.r,
             offset: Offset(0, 3.h),
           ),
         ],
       ),
-      child: Column(
+      child: Row(
         children: [
-          Text(
-            emoji,
-            style: TextStyle(fontSize: 20.sp),
-          ),
-          SizedBox(height: 4.h),
-          Icon(icon, color: color, size: 16.w),
-          SizedBox(height: 8.h),
-          Text(
-            value,
-            style: BabyFont.headingM.copyWith(
-              fontSize: 16.sp,
-              color: color,
-            ),
-          ),
-          SizedBox(height: 4.h),
-          Text(
-            label,
-            style: BabyFont.bodyS.copyWith(
-              fontSize: 10.sp,
-              color: AppTheme.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
+          _buildSectionIcon(section),
+          SizedBox(width: 16.w),
+          Expanded(child: _buildSectionContent(section)),
+          _buildSectionActions(section),
         ],
       ),
     );
   }
 
-  Widget _buildCoupleProfile() {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.all(20.w),
-        child: Container(
-          padding: EdgeInsets.all(20.w),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20.r),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primaryPink.withValues(alpha: 0.1),
-                blurRadius: 15.r,
-                offset: Offset(0, 5.h),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Text(
-                'Couple Profile 💕',
-                style: BabyFont.headingM.copyWith(
-                  color: AppTheme.primaryPink,
-                  fontWeight: BabyFont.bold,
-                ),
-              ),
-              SizedBox(height: 8.h),
-              Text(
-                'Upload photos of both partners',
-                style: BabyFont.bodyS.copyWith(
-                  color: AppTheme.textSecondary,
-                ),
-              ),
-              SizedBox(height: 24.h),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildAvatarPlaceholder(
-                      'Partner 1', AppTheme.primaryBlue, Icons.person_rounded),
-                  Container(
-                    width: 40.w,
-                    height: 40.w,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [AppTheme.primaryPink, AppTheme.primaryBlue],
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.favorite_rounded,
-                      color: Colors.white,
-                      size: 20.w,
-                    ),
-                  ),
-                  _buildAvatarPlaceholder(
-                      'Partner 2', AppTheme.primaryPink, Icons.person_rounded),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAchievementsSection() {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.all(20.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Achievements 🏆',
-              style: BabyFont.headingM.copyWith(
-                fontSize: 20.sp,
-                color: AppTheme.textPrimary,
-                fontWeight: BabyFont.bold,
-              ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'Your relationship milestones',
-              style: BabyFont.bodyS.copyWith(
-                color: AppTheme.textSecondary,
-              ),
-            ),
-            SizedBox(height: 15.h),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 15.w,
-                mainAxisSpacing: 15.h,
-                childAspectRatio: 1.1,
-              ),
-              itemCount: 6,
-              itemBuilder: (context, index) {
-                final achievements = [
-                  {
-                    'title': 'First Baby',
-                    'icon': '👶',
-                    'color': AppTheme.primaryPink,
-                    'unlocked': true
-                  },
-                  {
-                    'title': 'Love Streak',
-                    'icon': '🔥',
-                    'color': AppTheme.accentYellow,
-                    'unlocked': true
-                  },
-                  {
-                    'title': 'Memory Maker',
-                    'icon': '📸',
-                    'color': AppTheme.primaryBlue,
-                    'unlocked': true
-                  },
-                  {
-                    'title': 'Quiz Master',
-                    'icon': '🧠',
-                    'color': AppTheme.primaryPink,
-                    'unlocked': false
-                  },
-                  {
-                    'title': 'Perfect Match',
-                    'icon': '💕',
-                    'color': AppTheme.accentYellow,
-                    'unlocked': false
-                  },
-                  {
-                    'title': 'Premium User',
-                    'icon': '⭐',
-                    'color': AppTheme.primaryBlue,
-                    'unlocked': false
-                  },
-                ];
-                final achievement = achievements[index];
-                return _buildAchievementCard(
-                  achievement['title'] as String,
-                  achievement['icon'] as String,
-                  achievement['color'] as Color,
-                  achievement['unlocked'] as bool,
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAchievementCard(
-      String title, String icon, Color color, bool unlocked) {
+  Widget _buildSectionIcon(ProfileSection section) {
     return Container(
+      width: 48.w,
+      height: 48.w,
       decoration: BoxDecoration(
-        color: unlocked ? Colors.white : Colors.grey.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20.r),
-        boxShadow: unlocked
-            ? [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.1),
-                  blurRadius: 15.r,
-                  offset: Offset(0, 5.h),
-                ),
-              ]
-            : null,
+        color: AppTheme.primaryPink.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12.r),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: EdgeInsets.all(15.w),
-            decoration: BoxDecoration(
-              color: unlocked
-                  ? color.withValues(alpha: 0.1)
-                  : Colors.grey.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(15.r),
-            ),
-            child: Text(
-              icon,
-              style: TextStyle(fontSize: 24.sp),
-            ),
-          ),
-          SizedBox(height: 12.h),
-          Text(
-            title,
-            style: BabyFont.bodyM.copyWith(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-              color: unlocked ? AppTheme.textPrimary : AppTheme.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 4.h),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
-            decoration: BoxDecoration(
-              color: unlocked
-                  ? color.withValues(alpha: 0.2)
-                  : Colors.grey.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(8.r),
-            ),
-            child: Text(
-              unlocked ? 'Unlocked' : 'Locked',
-              style: BabyFont.bodyS.copyWith(
-                fontSize: 8.sp,
-                color: unlocked ? color : AppTheme.textSecondary,
-              ),
-            ),
+          Text(section.emoji, style: TextStyle(fontSize: 16.sp)),
+          Icon(
+            _getIconData(section.icon),
+            size: 16.w,
+            color: AppTheme.primaryPink,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSettingsSection() {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.all(20.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Settings ⚙️',
-              style: BabyFont.headingM.copyWith(
-                fontSize: 20.sp,
-                color: AppTheme.textPrimary,
-                fontWeight: BabyFont.bold,
-              ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'Customize your experience',
-              style: BabyFont.bodyS.copyWith(
-                color: AppTheme.textSecondary,
-              ),
-            ),
-            SizedBox(height: 15.h),
-            _buildSettingCard(
-              'Notifications',
-              'Manage your notification preferences',
-              Icons.notifications_rounded,
-              AppTheme.primaryBlue,
-              _notificationsEnabled,
-              (value) {
-                setState(() {
-                  _notificationsEnabled = value;
-                });
-                ToastService.showInfo(context,
-                    'Notifications ${value ? 'enabled' : 'disabled'}! 🔔');
-              },
-            ),
-            _buildSettingCard(
-              'Dark Mode',
-              'Switch between light and dark themes',
-              Icons.dark_mode_rounded,
-              AppTheme.accentYellow,
-              _darkModeEnabled,
-              (value) {
-                setState(() {
-                  _darkModeEnabled = value;
-                });
-                ToastService.showInfo(
-                    context, 'Dark mode ${value ? 'enabled' : 'disabled'}! 🌙');
-              },
-            ),
-            _buildSettingCard(
-              'Privacy',
-              'Control your data and privacy settings',
-              Icons.privacy_tip_rounded,
-              AppTheme.primaryPink,
-              false,
-              (value) {
-                ToastService.showInfo(
-                    context, 'Privacy settings coming soon! 🔒');
-              },
-            ),
-            _buildSettingCard(
-              'Share App',
-              'Invite friends to try Future Baby',
-              Icons.share_rounded,
-              AppTheme.primaryBlue,
-              false,
-              (value) {
-                ToastService.showCelebration(
-                    context, 'Sharing app with friends! 📱');
-              },
-            ),
-            _buildSettingCard(
-              'Support',
-              'Get help and contact support',
-              Icons.help_rounded,
-              Colors.grey,
-              false,
-              (value) {
-                ToastService.showInfo(context, 'Support coming soon! 🆘');
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingCard(String title, String subtitle, IconData icon,
-      Color color, bool value, Function(bool) onChanged) {
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.only(bottom: 12.h),
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12.r),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.1),
-            blurRadius: 8.r,
-            offset: Offset(0, 2.h),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40.w,
-            height: 40.w,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 20.w),
-          ),
-          SizedBox(width: 12.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: BabyFont.titleMedium.copyWith(
-                    color: AppTheme.textPrimary,
-                    fontWeight: BabyFont.semiBold,
-                  ),
-                ),
-                SizedBox(height: 2.h),
-                Text(
-                  subtitle,
-                  style: BabyFont.bodySmall.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: color,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPremiumSection() {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.all(20.w),
-        child: Container(
-          padding: EdgeInsets.all(20.w),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                AppTheme.accentYellow.withValues(alpha: 0.1),
-                AppTheme.primaryPink.withValues(alpha: 0.1),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20.r),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.accentYellow.withValues(alpha: 0.1),
-                blurRadius: 15.r,
-                offset: Offset(0, 5.h),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.star_rounded,
-                    color: AppTheme.accentYellow,
-                    size: 28.w,
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Upgrade to Premium ⭐',
-                          style: BabyFont.headingM.copyWith(
-                            color: AppTheme.accentYellow,
-                            fontWeight: BabyFont.bold,
-                          ),
-                        ),
-                        SizedBox(height: 4.h),
-                        Text(
-                          'Unlock all features and unlimited baby generation!',
-                          style: BabyFont.bodyS.copyWith(
-                            color: AppTheme.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16.h),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildPremiumFeature('Unlimited Babies', '👶'),
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: _buildPremiumFeature('Advanced AI', '🤖'),
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: _buildPremiumFeature('Priority Support', '🆘'),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16.h),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    ToastService.showCelebration(
-                        context, 'Premium upgrade coming soon! ⭐');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accentYellow,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 12.h),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.r),
-                    ),
-                  ),
-                  child: Text(
-                    'Upgrade Now',
-                    style: BabyFont.bodyM.copyWith(
-                      fontWeight: BabyFont.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPremiumFeature(String title, String emoji) {
-    return Container(
-      padding: EdgeInsets.all(12.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12.r),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.accentYellow.withValues(alpha: 0.1),
-            blurRadius: 8.r,
-            offset: Offset(0, 2.h),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Text(
-            emoji,
-            style: TextStyle(fontSize: 16.sp),
-          ),
-          SizedBox(height: 4.h),
-          Text(
-            title,
-            style: BabyFont.bodyS.copyWith(
-              fontSize: 8.sp,
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvatarPlaceholder(String label, Color color, IconData icon) {
+  Widget _buildSectionContent(ProfileSection section) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            ToastService.showInfo(context, 'Photo upload coming soon! 📸');
-          },
-          child: Container(
-            width: 80.w,
-            height: 80.w,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-              border: Border.all(color: color, width: 2.w),
-            ),
-            child: Icon(
-              icon,
-              size: 32.w,
-              color: color,
-            ),
+        Text(
+          section.title,
+          style: BabyFont.headingS.copyWith(
+            color: AppTheme.textPrimary,
           ),
         ),
-        SizedBox(height: 8.h),
+        SizedBox(height: 4.h),
         Text(
-          label,
-          style: BabyFont.labelMedium.copyWith(
-            color: color,
-            fontWeight: BabyFont.semiBold,
+          section.description,
+          style: BabyFont.bodyS.copyWith(
+            color: AppTheme.textSecondary,
           ),
         ),
       ],
     );
   }
 
-  void _showEditProfile() {
+  Widget _buildSectionActions(ProfileSection section) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: () => _toggleSection(section),
+          icon: Icon(
+            section.isEnabled ? Icons.visibility : Icons.visibility_off,
+            color: section.isEnabled
+                ? AppTheme.primaryPink
+                : AppTheme.textSecondary,
+          ),
+        ),
+        IconButton(
+          onPressed: () => _showSectionOptions(section),
+          icon: Icon(
+            Icons.more_vert,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Get icon data from string
+  IconData _getIconData(String iconName) {
+    switch (iconName) {
+      case 'mood':
+        return Icons.mood;
+      case 'note':
+        return Icons.note;
+      case 'photo_library':
+        return Icons.photo_library;
+      case 'star':
+        return Icons.star;
+      case 'favorite':
+        return Icons.favorite;
+      case 'trending_up':
+        return Icons.trending_up;
+      default:
+        return Icons.favorite;
+    }
+  }
+
+  /// Toggle section enabled/disabled state with optimized performance
+  Future<void> _toggleSection(ProfileSection section) async {
+    if (!mounted) return;
+
+    // Optimistic update for instant UI feedback
+    setState(() {
+      final index = _profileSections.indexWhere((s) => s.id == section.id);
+      if (index != -1) {
+        _profileSections[index] = section.copyWith(
+          isEnabled: !section.isEnabled,
+          updatedAt: DateTime.now(),
+        );
+      }
+    });
+
+    try {
+      final success =
+          await DynamicProfileService.instance.toggleSection(section.id);
+
+      if (!success && mounted) {
+        // Revert on failure
+        setState(() {
+          final index = _profileSections.indexWhere((s) => s.id == section.id);
+          if (index != -1) {
+            _profileSections[index] = section;
+          }
+        });
+      }
+
+      ToastService.showSuccess(
+        context,
+        '${section.title} ${!section.isEnabled ? 'enabled' : 'disabled'}!',
+      );
+    } catch (e) {
+      // Revert on error
+      if (mounted) {
+        setState(() {
+          final index = _profileSections.indexWhere((s) => s.id == section.id);
+          if (index != -1) {
+            _profileSections[index] = section;
+          }
+        });
+      }
+
+      ToastService.showError(context, 'Failed to toggle section');
+    }
+  }
+
+  /// Show section options dialog
+  void _showSectionOptions(ProfileSection section) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        padding: EdgeInsets.all(20.w),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
@@ -956,45 +687,26 @@ class _ProfileScreenState extends State<ProfileScreen>
             Container(
               width: 40.w,
               height: 4.h,
+              margin: EdgeInsets.symmetric(vertical: 12.h),
               decoration: BoxDecoration(
-                color: AppTheme.textSecondary.withValues(alpha: 0.3),
+                color: AppTheme.textSecondary,
                 borderRadius: BorderRadius.circular(2.r),
               ),
             ),
-            SizedBox(height: 20.h),
-            Text(
-              'Edit Profile 💕',
-              style: BabyFont.headingM.copyWith(
-                color: AppTheme.primaryPink,
-                fontWeight: BabyFont.bold,
-              ),
-            ),
-            SizedBox(height: 20.h),
-            _buildEditOption(
-              'Change Names',
-              'Update your couple names',
-              Icons.person,
-              () {
+            ListTile(
+              leading: Icon(Icons.edit, color: AppTheme.primaryPink),
+              title: Text('Edit Section'),
+              onTap: () {
                 Navigator.pop(context);
-                ToastService.showInfo(context, 'Name editing coming soon! 👤');
+                _showEditSectionDialog(section);
               },
             ),
-            _buildEditOption(
-              'Update Photos',
-              'Change your profile pictures',
-              Icons.photo_camera,
-              () {
+            ListTile(
+              leading: Icon(Icons.delete, color: Colors.red),
+              title: Text('Delete Section'),
+              onTap: () {
                 Navigator.pop(context);
-                ToastService.showInfo(context, 'Photo update coming soon! 📸');
-              },
-            ),
-            _buildEditOption(
-              'Relationship Status',
-              'Update your relationship details',
-              Icons.favorite,
-              () {
-                Navigator.pop(context);
-                ToastService.showInfo(context, 'Status update coming soon! 💕');
+                _showDeleteSectionDialog(section);
               },
             ),
             SizedBox(height: 20.h),
@@ -1002,6 +714,263 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
       ),
     );
+  }
+
+  /// Show add section dialog
+  void _showAddSectionDialog() {
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    String selectedEmoji = '💕';
+    String selectedIcon = 'favorite';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Add Custom Section'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: InputDecoration(
+                labelText: 'Section Title',
+                hintText: 'e.g., "Our Goals"',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+              ),
+            ),
+            SizedBox(height: 16.h),
+            TextField(
+              controller: descriptionController,
+              decoration: InputDecoration(
+                labelText: 'Description',
+                hintText: 'Brief description of this section',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+              ),
+            ),
+            SizedBox(height: 16.h),
+            Row(
+              children: [
+                Text('Emoji: '),
+                Expanded(
+                  child: TextField(
+                    onChanged: (value) => selectedEmoji = value,
+                    decoration: InputDecoration(
+                      hintText: '💕',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => _saveCustomSection(
+              nameController.text,
+              descriptionController.text,
+              selectedEmoji,
+              selectedIcon,
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryPink,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Save custom section
+  Future<void> _saveCustomSection(
+      String title, String description, String emoji, String icon) async {
+    if (title.isEmpty || description.isEmpty) {
+      ToastService.showError(context, 'Please fill in all fields');
+      return;
+    }
+
+    try {
+      final section = ProfileSection(
+        id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
+        title: title,
+        description: description,
+        icon: icon,
+        emoji: emoji,
+        type: ProfileSectionType.custom,
+        data: {'enabled': true, 'color': '#FF6B9D'},
+        isEnabled: true,
+        order: _profileSections.length + 1,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final success = await DynamicProfileService.instance.addSection(section);
+      if (success && mounted) {
+        Navigator.pop(context);
+        await _loadDynamicSections();
+        ToastService.showSuccess(context, 'Custom section added! ✨');
+      } else {
+        ToastService.showError(context, 'Failed to add section');
+      }
+    } catch (e) {
+      ToastService.showError(context, 'Failed to add section: ${e.toString()}');
+    }
+  }
+
+  /// Show edit section dialog
+  void _showEditSectionDialog(ProfileSection section) {
+    final nameController = TextEditingController(text: section.title);
+    final descriptionController =
+        TextEditingController(text: section.description);
+    String selectedEmoji = section.emoji;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Edit Section'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: InputDecoration(
+                labelText: 'Section Title',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+              ),
+            ),
+            SizedBox(height: 16.h),
+            TextField(
+              controller: descriptionController,
+              decoration: InputDecoration(
+                labelText: 'Description',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+              ),
+            ),
+            SizedBox(height: 16.h),
+            TextField(
+              onChanged: (value) => selectedEmoji = value,
+              decoration: InputDecoration(
+                labelText: 'Emoji',
+                hintText: section.emoji,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => _updateCustomSection(
+              section,
+              nameController.text,
+              descriptionController.text,
+              selectedEmoji,
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryPink,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Update custom section
+  Future<void> _updateCustomSection(ProfileSection section, String title,
+      String description, String emoji) async {
+    if (title.isEmpty || description.isEmpty) {
+      ToastService.showError(context, 'Please fill in all fields');
+      return;
+    }
+
+    try {
+      final updatedSection = section.copyWith(
+        title: title,
+        description: description,
+        emoji: emoji,
+        updatedAt: DateTime.now(),
+      );
+
+      final success =
+          await DynamicProfileService.instance.updateSection(updatedSection);
+      if (success && mounted) {
+        Navigator.pop(context);
+        await _loadDynamicSections();
+        ToastService.showSuccess(context, 'Section updated! ✨');
+      } else {
+        ToastService.showError(context, 'Failed to update section');
+      }
+    } catch (e) {
+      ToastService.showError(
+          context, 'Failed to update section: ${e.toString()}');
+    }
+  }
+
+  /// Show delete section dialog
+  void _showDeleteSectionDialog(ProfileSection section) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Section'),
+        content: Text(
+            'Are you sure you want to delete "${section.title}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => _deleteCustomSection(section),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Delete custom section
+  Future<void> _deleteCustomSection(ProfileSection section) async {
+    try {
+      final success =
+          await DynamicProfileService.instance.deleteSection(section.id);
+      if (success && mounted) {
+        Navigator.pop(context);
+        await _loadDynamicSections();
+        ToastService.showSuccess(context, 'Section deleted! 🗑️');
+      } else {
+        ToastService.showError(context, 'Failed to delete section');
+      }
+    } catch (e) {
+      ToastService.showError(
+          context, 'Failed to delete section: ${e.toString()}');
+    }
   }
 
   Widget _buildEditOption(

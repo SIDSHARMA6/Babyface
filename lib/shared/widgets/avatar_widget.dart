@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:image_picker/image_picker.dart';
@@ -227,7 +228,7 @@ class _AvatarWidgetState extends State<AvatarWidget>
       }
     } catch (e) {
       // Handle error silently or show toast
-      debugPrint('Error picking image: $e');
+      developer.log('Error picking image: $e');
     }
   }
 

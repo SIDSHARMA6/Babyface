@@ -24,6 +24,7 @@ import '../../features/engagement_features/presentation/screens/baby_name_genera
 import '../../features/engagement_features/presentation/screens/memory_journal_screen.dart';
 import '../../features/engagement_features/presentation/screens/add_memory_screen.dart';
 import '../../features/engagement_features/presentation/screens/journey_preview_screen.dart';
+import '../../features/engagement_features/presentation/screens/memory_journey_preview_screen.dart';
 import '../../features/engagement_features/presentation/screens/couple_challenges_screen.dart';
 import '../../features/engagement_features/presentation/screens/growth_timeline_screen.dart';
 import '../../features/engagement_features/presentation/screens/anniversary_tracker_screen.dart';
@@ -54,6 +55,23 @@ import '../../features/social_sharing/presentation/screens/social_challenges_scr
 // Analytics screens
 import '../../features/analytics/presentation/screens/analytics_dashboard_screen.dart';
 
+// Login screens
+import '../../features/login/presentation/screens/login_screen.dart';
+
+// Period Tracker screens
+import '../../features/period_tracker/presentation/screens/period_tracker_screen.dart';
+
+// Additional Engagement Features screens
+import '../../features/engagement_features/presentation/screens/debug_memory_screen.dart';
+import '../../features/engagement_features/presentation/screens/memory_detail_screen.dart';
+import '../../features/engagement_features/presentation/screens/real_baby_name_generator_screen.dart'
+    as real_screens;
+import '../../features/engagement_features/presentation/screens/real_couple_challenges_bucket_list_screen.dart';
+import '../../features/engagement_features/presentation/screens/real_growth_memory_timeline_screen.dart';
+
+// Baby Generation additional screens
+import '../../features/baby_generation/presentation/screens/ai_baby_result_screen.dart';
+
 /// App router configuration
 /// Follows master plan navigation standards
 class AppRouter {
@@ -74,6 +92,13 @@ class AppRouter {
         builder: (context, state) => const OnboardingScreen(),
       ),
 
+      // Login Screen
+      GoRoute(
+        path: '/login',
+        name: 'login',
+        builder: (context, state) => const LoginScreen(),
+      ),
+
       // Main Navigation (Tab-based)
       GoRoute(
         path: '/main',
@@ -92,6 +117,23 @@ class AppRouter {
             path: 'baby-generation',
             name: 'baby-generation',
             builder: (context, state) => const BabyGenerationScreen(),
+          ),
+          GoRoute(
+            path: 'ai-baby-result',
+            name: 'ai-baby-result',
+            builder: (context, state) {
+              final resultData = state.extra as Map<String, dynamic>?;
+              if (resultData == null) {
+                return const Scaffold(
+                  body: Center(child: Text('Baby result data not found')),
+                );
+              }
+              return AIBabyResultScreen(
+                result: resultData['result'],
+                maleName: resultData['maleName'] ?? 'Male Parent',
+                femaleName: resultData['femaleName'] ?? 'Female Parent',
+              );
+            },
           ),
 
           // Couple Goals
@@ -158,6 +200,31 @@ class AppRouter {
             builder: (context, state) => const JourneyPreviewScreen(),
           ),
           GoRoute(
+            path: 'memory-journey-preview',
+            name: 'memory-journey-preview',
+            builder: (context, state) => const MemoryJourneyPreviewScreen(),
+          ),
+          GoRoute(
+            path: 'memory-journey-visualizer',
+            name: 'memory-journey-visualizer',
+            builder: (context, state) {
+              // Get journey data from arguments
+              final journeyData = state.extra as Map<String, dynamic>?;
+              if (journeyData == null) {
+                return const Scaffold(
+                  body: Center(child: Text('Journey data not found')),
+                );
+              }
+              // TODO: Implement proper journey data parsing
+              // For now, show a loading screen
+              return const Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            },
+          ),
+          GoRoute(
             path: 'couple-challenges',
             name: 'couple-challenges',
             builder: (context, state) => const CoupleChallengesScreen(),
@@ -186,6 +253,44 @@ class AppRouter {
             path: 'couple-bucket-list',
             name: 'couple-bucket-list',
             builder: (context, state) => const CoupleBucketListScreen(),
+          ),
+          GoRoute(
+            path: 'debug-memory',
+            name: 'debug-memory',
+            builder: (context, state) => const DebugMemoryScreen(),
+          ),
+          GoRoute(
+            path: 'memory-detail',
+            name: 'memory-detail',
+            builder: (context, state) {
+              final memoryId = state.uri.queryParameters['id'];
+              if (memoryId == null) {
+                return const Scaffold(
+                  body: Center(child: Text('Memory ID not found')),
+                );
+              }
+              // TODO: Fetch memory by ID and pass to MemoryDetailScreen
+              return const Scaffold(
+                body: Center(child: Text('Memory detail not implemented yet')),
+              );
+            },
+          ),
+          GoRoute(
+            path: 'real-baby-name-generator',
+            name: 'real-baby-name-generator',
+            builder: (context, state) =>
+                const real_screens.BabyNameGeneratorScreen(),
+          ),
+          GoRoute(
+            path: 'real-couple-challenges-bucket-list',
+            name: 'real-couple-challenges-bucket-list',
+            builder: (context, state) =>
+                const CoupleChallengesBucketListScreen(),
+          ),
+          GoRoute(
+            path: 'real-growth-memory-timeline',
+            name: 'real-growth-memory-timeline',
+            builder: (context, state) => const GrowthMemoryTimelineScreen(),
           ),
 
           // Quiz System
@@ -280,6 +385,13 @@ class AppRouter {
             path: 'profile',
             name: 'profile',
             builder: (context, state) => const ProfileScreen(),
+          ),
+
+          // Period Tracker
+          GoRoute(
+            path: 'period-tracker',
+            name: 'period-tracker',
+            builder: (context, state) => const PeriodTrackerScreen(),
           ),
 
           // History

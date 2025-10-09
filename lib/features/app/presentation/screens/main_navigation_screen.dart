@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -74,6 +75,9 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
       vsync: this,
     );
 
+    // Start animation controller at full value to avoid initial scaling issues
+    _animationController.value = 1.0;
+
     _iconAnimationController = AnimationController(
       duration: const Duration(milliseconds: 150), // Even faster icon response
       vsync: this,
@@ -113,53 +117,60 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
       builder: (context, ref, child) {
         final navigationState = ref.watch(navigationProvider);
 
-        // Sync PageView with navigation state
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _pageController.hasClients) {
-            final currentPage = _pageController.page?.round() ?? 0;
-            print(
-                '🔐 [MainNavigationScreen] PageView sync - currentPage: $currentPage, navigationIndex: ${navigationState.currentIndex}');
-            if (currentPage != navigationState.currentIndex) {
-              print(
-                  '🔐 [MainNavigationScreen] Syncing PageView to navigation state');
-              _pageController.animateToPage(
-                navigationState.currentIndex,
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOutCubic,
-              );
-            }
+        // Sync PageView with navigation state only when needed
+        if (mounted && _pageController.hasClients) {
+          final currentPage = _pageController.page?.round() ?? 0;
+          if (currentPage != navigationState.currentIndex) {
+            developer.log(
+                '🔐 [MainNavigationScreen] Syncing PageView to navigation state');
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _pageController.hasClients) {
+                _pageController.animateToPage(
+                  navigationState.currentIndex,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                );
+              }
+            });
           }
-        });
+        }
 
-        return Scaffold(
-          body: PageView(
-            controller: _pageController,
-            physics: const BouncingScrollPhysics(), // Cute bouncy physics
-            onPageChanged: (index) {
-              _onPageChanged(index);
-            },
-            children: _screens
-                .map(
-                  (screen) => AnimatedBuilder(
-                    animation: _animationController,
-                    builder: (context, child) {
-                      final animationValue =
-                          _animationController.value.clamp(0.0, 1.0);
-                      return Transform.scale(
-                        scale: 0.95 + (0.05 * animationValue),
-                        child: Opacity(
-                          opacity:
-                              (0.7 + (0.3 * animationValue.clamp(0.0, 1.0)))
-                                  .clamp(0.0, 1.0),
-                          child: screen,
-                        ),
-                      );
-                    },
-                  ),
-                )
-                .toList(),
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarIconBrightness: Brightness.dark,
           ),
-          bottomNavigationBar: _buildCuteBottomNavBar(),
+          child: Scaffold(
+            backgroundColor:
+                AppTheme.scaffoldBackground, // Fix black background issue
+            body: PageView(
+              controller: _pageController,
+              physics: const BouncingScrollPhysics(), // Cute bouncy physics
+              onPageChanged: (index) {
+                _onPageChanged(index);
+              },
+              children: _screens
+                  .map(
+                    (screen) => AnimatedBuilder(
+                      animation: _animationController,
+                      builder: (context, child) {
+                        final animationValue =
+                            _animationController.value.clamp(0.0, 1.0);
+                        // Only apply subtle opacity animation, no scaling to preserve edge-to-edge
+                        return Opacity(
+                          opacity: 0.8 + (0.2 * animationValue.clamp(0.0, 1.0)),
+                          child: screen,
+                        );
+                      },
+                    ),
+                  )
+                  .toList(),
+            ),
+            bottomNavigationBar: _buildCuteBottomNavBar(),
+          ),
         );
       },
     );
@@ -188,12 +199,21 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
           ),
         ],
       ),
-      child: SafeArea(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: List.generate(_navItems.length, (index) {
-            return _buildNavItem(index);
-          }),
+      child: ClipRRect(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(25.r),
+          topRight: Radius.circular(25.r),
+        ),
+        child: Container(
+          color: Colors.white, // Ensure solid white background
+          child: SafeArea(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(_navItems.length, (index) {
+                return _buildNavItem(index);
+              }),
+            ),
+          ),
         ),
       ),
     );
@@ -317,11 +337,11 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
 
   void _onTabTapped(int index, NavigationNotifier navigationNotifier) {
     final currentIndex = ref.read(navigationProvider).currentIndex;
-    print(
+    developer.log(
         '🔐 [MainNavigationScreen] Tab tapped - index: $index, currentIndex: $currentIndex');
 
     if (currentIndex == index) {
-      print('🔐 [MainNavigationScreen] Same tab tapped, returning');
+      developer.log('🔐 [MainNavigationScreen] Same tab tapped, returning');
       return; // Prevent unnecessary animations
     }
 
@@ -335,7 +355,7 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
     _tabAnimationControllers[index].forward();
 
     // Update state immediately for instant visual feedback
-    print(
+    developer.log(
         '🔐 [MainNavigationScreen] Updating navigation state to index: $index');
     navigationNotifier.setCurrentIndex(index);
 
@@ -344,7 +364,8 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
     _animationController.forward();
 
     // Smooth page transition with cute curve
-    print('🔐 [MainNavigationScreen] Animating PageView to index: $index');
+    developer
+        .log('🔐 [MainNavigationScreen] Animating PageView to index: $index');
     _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 250), // Super fast transition
@@ -369,11 +390,11 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
   void _onPageChanged(int index) {
     final navigationNotifier = ref.read(navigationProvider.notifier);
     final navigationState = ref.read(navigationProvider);
-    print(
+    developer.log(
         '🔐 [MainNavigationScreen] Page changed to index: $index, currentIndex: ${navigationState.currentIndex}');
 
     if (navigationState.currentIndex != index) {
-      print(
+      developer.log(
           '🔐 [MainNavigationScreen] Updating navigation state from page change');
       // Reset previous tab animation
       _tabAnimationControllers[navigationState.currentIndex].reverse();
@@ -381,6 +402,7 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
       // Animate new tab
       _tabAnimationControllers[index].forward();
 
+      // Update navigation state without triggering another page change
       navigationNotifier.setCurrentIndex(index);
 
       // Gentle haptic feedback for page swipe

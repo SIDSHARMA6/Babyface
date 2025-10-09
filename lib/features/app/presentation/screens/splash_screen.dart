@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -97,7 +98,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   Future<void> _checkLoginStatus() async {
     try {
-      print('🔐 [SplashScreen] Checking login status...');
+      developer.log('🔐 [SplashScreen] Checking login status...');
 
       // Wait for login provider to initialize completely
       int attempts = 0;
@@ -107,28 +108,28 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         await Future.delayed(const Duration(milliseconds: 10));
         loginState = ref.read(loginProvider);
         attempts++;
-        print(
+        developer.log(
             '🔐 [SplashScreen] Attempt $attempts - Login state: isLoading=${loginState.isLoading}, user=${loginState.user?.email}');
       } while (loginState.isLoading && attempts < 20); // Wait up to 2 seconds
 
-      print(
+      developer.log(
           '🔐 [SplashScreen] Final login state: isLoading=${loginState.isLoading}, user=${loginState.user?.email}');
 
       // Debug: Show detailed user information
       if (loginState.user != null) {
         final user = loginState.user!;
-        print('🔐 [SplashScreen] ===== USER DETAILS =====');
-        print('🔐 [SplashScreen] Email: ${user.email}');
-        print('🔐 [SplashScreen] Display Name: ${user.displayName}');
-        print('🔐 [SplashScreen] First Name: ${user.firstName}');
-        print('🔐 [SplashScreen] Last Name: ${user.lastName}');
-        print('🔐 [SplashScreen] Gender: ${user.gender}');
-        print('🔐 [SplashScreen] Partner Name: ${user.partnerName}');
-        print('🔐 [SplashScreen] Bond Name: ${user.bondName}');
-        print('🔐 [SplashScreen] Is Complete: ${user.isComplete}');
-        print(
+        developer.log('🔐 [SplashScreen] ===== USER DETAILS =====');
+        developer.log('🔐 [SplashScreen] Email: ${user.email}');
+        developer.log('🔐 [SplashScreen] Display Name: ${user.displayName}');
+        developer.log('🔐 [SplashScreen] First Name: ${user.firstName}');
+        developer.log('🔐 [SplashScreen] Last Name: ${user.lastName}');
+        developer.log('🔐 [SplashScreen] Gender: ${user.gender}');
+        developer.log('🔐 [SplashScreen] Partner Name: ${user.partnerName}');
+        developer.log('🔐 [SplashScreen] Bond Name: ${user.bondName}');
+        developer.log('🔐 [SplashScreen] Is Complete: ${user.isComplete}');
+        developer.log(
             '🔐 [SplashScreen] Has Bond Name: ${user.bondName?.isNotEmpty ?? false}');
-        print('🔐 [SplashScreen] =========================');
+        developer.log('🔐 [SplashScreen] =========================');
       }
 
       if (mounted) {
@@ -141,7 +142,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       // Check if it's first time user
       await _checkFirstTimeUser();
     } catch (e) {
-      print('❌ [SplashScreen] Error checking login status: $e');
+      developer.log('❌ [SplashScreen] Error checking login status: $e');
       if (mounted) {
         setState(() {
           _isLoggedIn = false;
@@ -162,7 +163,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         });
       }
     } catch (e) {
-      print('❌ [SplashScreen] Error checking first time user: $e');
+      developer.log('❌ [SplashScreen] Error checking first time user: $e');
       if (mounted) {
         setState(() {
           _isFirstTime = true;
@@ -212,8 +213,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       nextScreen = const LoginScreen();
     }
 
-    print('🔐 [SplashScreen] Navigating to: ${nextScreen.runtimeType}');
-    print(
+    developer.log('🔐 [SplashScreen] Navigating to: ${nextScreen.runtimeType}');
+    developer.log(
         '🔐 [SplashScreen] _isFirstTime: $_isFirstTime, _isLoggedIn: $_isLoggedIn');
 
     Navigator.pushReplacement(

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:developer' as developer;
 import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:flutter/foundation.dart';
 import '../domain/models/social_challenge.dart';
 
 /// Firebase-integrated social challenges service
@@ -48,7 +48,7 @@ class SocialChallengesService {
       }
       return null;
     } catch (e) {
-      debugPrint('Error getting challenge: $e');
+      developer.log('Error getting challenge: $e');
       return null;
     }
   }
@@ -65,7 +65,7 @@ class SocialChallengesService {
 
       return existingParticipation.docs.isNotEmpty;
     } catch (e) {
-      debugPrint('Error checking user participation: $e');
+      developer.log('Error checking user participation: $e');
       return false;
     }
   }
@@ -131,7 +131,7 @@ class SocialChallengesService {
 
       return true;
     } catch (e) {
-      debugPrint('Error participating in challenge: $e');
+      developer.log('Error participating in challenge: $e');
       return false;
     }
   }
@@ -191,7 +191,7 @@ class SocialChallengesService {
 
       return true;
     } catch (e) {
-      debugPrint('Error participating in challenge: $e');
+      developer.log('Error participating in challenge: $e');
       return false;
     }
   }
@@ -243,7 +243,7 @@ class SocialChallengesService {
 
       return leaderboard;
     } catch (e) {
-      debugPrint('Error getting leaderboard: $e');
+      developer.log('Error getting leaderboard: $e');
       return [];
     }
   }
@@ -258,7 +258,7 @@ class SocialChallengesService {
         'likesCount': FieldValue.increment(1),
       });
     } catch (e) {
-      debugPrint('Error liking participation: $e');
+      developer.log('Error liking participation: $e');
     }
   }
 
@@ -272,7 +272,7 @@ class SocialChallengesService {
         'sharesCount': FieldValue.increment(1),
       });
     } catch (e) {
-      debugPrint('Error sharing participation: $e');
+      developer.log('Error sharing participation: $e');
     }
   }
 
@@ -285,7 +285,7 @@ class SocialChallengesService {
 
       return docRef.id;
     } catch (e) {
-      debugPrint('Error creating challenge: $e');
+      developer.log('Error creating challenge: $e');
       return null;
     }
   }
@@ -304,7 +304,7 @@ class SocialChallengesService {
           .map((doc) => SocialChallenge.fromFirestore(doc))
           .toList();
     } catch (e) {
-      debugPrint('Error getting trending challenges: $e');
+      developer.log('Error getting trending challenges: $e');
       return [];
     }
   }
@@ -323,7 +323,7 @@ class SocialChallengesService {
           .map((doc) => SocialChallenge.fromFirestore(doc))
           .toList();
     } catch (e) {
-      debugPrint('Error searching challenges: $e');
+      developer.log('Error searching challenges: $e');
       return [];
     }
   }
@@ -360,7 +360,7 @@ class SocialChallengesService {
             : 0.0,
       };
     } catch (e) {
-      debugPrint('Error getting challenge stats: $e');
+      developer.log('Error getting challenge stats: $e');
       return {};
     }
   }

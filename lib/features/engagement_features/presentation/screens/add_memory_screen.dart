@@ -172,19 +172,7 @@ class _AddMemoryScreenState extends ConsumerState<AddMemoryScreen>
 
   @override
   Widget build(BuildContext context) {
-    final memoryState = ref.watch(memoryJournalProvider);
-    final memoryNotifier = ref.read(memoryJournalProvider.notifier);
-
-    // Listen for errors
-    ref.listen<MemoryJournalState>(memoryJournalProvider, (previous, next) {
-      if (next.errorMessage != null &&
-          next.errorMessage != previous?.errorMessage) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${next.errorMessage}')),
-        );
-        memoryNotifier.clearError();
-      }
-    });
+    // NO ERROR LISTENING - SILENT FAILURES FOR INSTANT UX
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
@@ -209,7 +197,7 @@ class _AddMemoryScreenState extends ConsumerState<AddMemoryScreen>
         ),
         actions: [
           TextButton(
-            onPressed: memoryState.isAddingMemory ? null : _saveMemory,
+            onPressed: _saveMemory, // ALWAYS ENABLED - NO LOADING STATE
             child: Text(
               'Save',
               style: BabyFont.bodyM.copyWith(
@@ -247,7 +235,7 @@ class _AddMemoryScreenState extends ConsumerState<AddMemoryScreen>
               SizedBox(height: 20.h),
               _buildTagsSection(),
               SizedBox(height: 40.h),
-              _buildSaveButton(memoryState.isAddingMemory),
+              _buildSaveButton(false), // NEVER SHOW LOADING
             ],
           ),
         ),
@@ -740,7 +728,7 @@ class _AddMemoryScreenState extends ConsumerState<AddMemoryScreen>
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: isSaving ? null : _saveMemory,
+        onPressed: _saveMemory, // ALWAYS ENABLED - INSTANT RESPONSE
         style: ElevatedButton.styleFrom(
           backgroundColor: AppTheme.primaryPink,
           foregroundColor: Colors.white,
@@ -751,40 +739,19 @@ class _AddMemoryScreenState extends ConsumerState<AddMemoryScreen>
           elevation: 8,
           shadowColor: AppTheme.primaryPink.withValues(alpha: 0.3),
         ),
-        child: isSaving
-            ? Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 20.w,
-                    height: 20.w,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.w,
-                      valueColor: AlwaysStoppedAnimation(Colors.white),
-                    ),
-                  ),
-                  SizedBox(width: 12.w),
-                  Text(
-                    'Saving Memory...',
-                    style: BabyFont.bodyM.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.save, size: 20.w),
-                  SizedBox(width: 8.w),
-                  Text(
-                    'Save Memory 💕',
-                    style: BabyFont.bodyM.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.save, size: 20.w),
+            SizedBox(width: 8.w),
+            Text(
+              'Save Memory 💕',
+              style: BabyFont.bodyM.copyWith(
+                fontWeight: FontWeight.w600,
               ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -878,7 +845,7 @@ class _AddMemoryScreenState extends ConsumerState<AddMemoryScreen>
     if (widget.existingMemory != null) {
       // Update existing memory
       await memoryNotifier.updateMemoryWithParams(
-        widget.existingMemory!.id,
+        id: widget.existingMemory!.id,
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         emoji: _selectedEmoji,

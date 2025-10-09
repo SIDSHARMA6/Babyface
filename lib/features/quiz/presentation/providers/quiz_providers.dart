@@ -9,7 +9,8 @@ final quizRepositoryProvider = Provider<QuizRepository>((ref) {
 
 /// Current user ID provider (would come from auth in real app)
 final currentUserIdProvider = Provider<String>((ref) {
-  return 'user_123'; // TODO: Get from authentication
+  // TODO: Get from authentication service
+  return 'current_user'; // Use a more realistic default
 });
 
 /// Quiz categories provider

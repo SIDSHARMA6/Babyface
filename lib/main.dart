@@ -2,27 +2,43 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'dart:developer' as developer;
 import 'core/theme/app_theme.dart';
 import 'core/navigation/app_controller.dart';
 import 'shared/services/hive_service.dart';
 import 'shared/services/firebase_service.dart';
+import 'shared/services/data_sync_service.dart';
+import 'features/engagement_features/presentation/screens/add_memory_screen.dart';
+import 'features/engagement_features/presentation/screens/memory_journey_preview_screen.dart';
+import 'features/engagement_features/presentation/screens/debug_memory_screen.dart';
+import 'features/engagement_features/data/models/memory_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Hive for ultra-fast local storage first
-  print('🔐 [Main] Starting Hive initialization...');
+  developer.log('🔐 [Main] Starting Hive initialization...');
   await HiveService.initialize();
-  print('✅ [Main] Hive initialization completed');
+  developer.log('✅ [Main] Hive initialization completed');
 
   // Initialize Firebase
-  print('🚀 [Main] Starting Firebase initialization...');
+  developer.log('🚀 [Main] Starting Firebase initialization...');
   try {
     await FirebaseService().initialize();
-    print('✅ [Main] Firebase initialized successfully');
+    developer.log('✅ [Main] Firebase initialized successfully');
+
+    // Sync data from Firebase after successful initialization
+    developer.log('🔄 [Main] Starting data sync from Firebase...');
+    try {
+      await DataSyncService.instance.syncAllDataFromFirebase();
+      developer.log('✅ [Main] Data sync completed successfully');
+    } catch (e) {
+      developer.log('❌ [Main] Data sync failed: $e');
+      // App will continue with local data only
+    }
   } catch (e) {
-    print('❌ [Main] Firebase initialization failed: $e');
-    print('❌ [Main] Error type: ${e.runtimeType}');
+    developer.log('❌ [Main] Firebase initialization failed: $e');
+    developer.log('❌ [Main] Error type: ${e.runtimeType}');
     // App will continue with limited functionality
   }
 
@@ -67,6 +83,27 @@ class FutureBabyApp extends StatelessWidget {
           darkTheme: AppTheme.darkTheme,
           themeMode: ThemeMode.system,
           home: const AppController(),
+          routes: {
+            '/main/add-memory': (context) => const AddMemoryScreen(),
+            '/main/memory-journey-preview': (context) =>
+                const MemoryJourneyPreviewScreen(),
+            '/debug/memory': (context) => const DebugMemoryScreen(),
+            '/main/memory-detail': (context) {
+              final memory =
+                  ModalRoute.of(context)?.settings.arguments as MemoryModel?;
+              if (memory == null) {
+                return const Scaffold(
+                  body: Center(child: Text('Memory not found')),
+                );
+              }
+              // TODO: Implement proper memory detail screen
+              return const Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            },
+          },
           // Performance optimizations
           builder: (context, child) {
             return MediaQuery(

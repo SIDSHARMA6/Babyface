@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
@@ -307,7 +308,7 @@ class SharingService {
 
       return result.data['caption'] ?? _getFallbackCaption(type);
     } catch (e) {
-      debugPrint('Failed to generate dynamic caption: $e');
+      developer.log('Failed to generate dynamic caption: $e');
       return _getFallbackCaption(type);
     }
   }
@@ -332,7 +333,7 @@ class SharingService {
         'caption': caption ?? '',
       };
     } catch (e) {
-      debugPrint('Failed to create branded content: $e');
+      developer.log('Failed to create branded content: $e');
       return {
         'imagePath': imagePath,
         'caption': caption ?? '',
@@ -390,7 +391,7 @@ class SharingService {
         'sharingStats.$contentType': FieldValue.increment(1),
       });
     } catch (e) {
-      debugPrint('Failed to track sharing event: $e');
+      developer.log('Failed to track sharing event: $e');
     }
   }
 
@@ -403,7 +404,7 @@ class SharingService {
       }
       return null;
     } catch (e) {
-      debugPrint('Failed to get referral code: $e');
+      developer.log('Failed to get referral code: $e');
       return null;
     }
   }
@@ -427,7 +428,7 @@ class SharingService {
 
       return result.data['link'] ?? _appUrl;
     } catch (e) {
-      debugPrint('Failed to generate sharing link: $e');
+      developer.log('Failed to generate sharing link: $e');
       return _appUrl;
     }
   }
@@ -456,7 +457,7 @@ class SharingService {
         });
       }
     } catch (e) {
-      debugPrint('Failed to track viral metrics: $e');
+      developer.log('Failed to track viral metrics: $e');
     }
   }
 

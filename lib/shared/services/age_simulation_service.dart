@@ -56,14 +56,16 @@ class AgeSimulationService {
     String ageGroup,
     String gender,
   ) {
-    final ageChar = _ageCharacteristics[ageGroup] ?? _ageCharacteristics['1year']!;
+    final ageChar =
+        _ageCharacteristics[ageGroup] ?? _ageCharacteristics['1year']!;
     // final random = math.Random();
-    
+
     // Adjust facial features based on age
-    final adjustedFaceRatio = _adjustFaceRatio(parentFeatures.faceRatio, ageChar);
+    final adjustedFaceRatio =
+        _adjustFaceRatio(parentFeatures.faceRatio, ageChar);
     // final adjustedEyeRatio = _adjustEyeRatio(parentFeatures.eyeToFaceRatio, ageChar);
     // final adjustedFaceShape = _adjustFaceShape(parentFeatures.faceShape, ageChar);
-    
+
     // Generate age-specific characteristics
     final babyFeatures = BabyAgeFeatures(
       ageGroup: ageGroup,
@@ -80,36 +82,16 @@ class AgeSimulationService {
       parentFeatures: parentFeatures,
       cutenessScore: _calculateCutenessScore(ageChar, parentFeatures),
     );
-    
+
     return babyFeatures;
   }
 
   /// Adjust face ratio for baby age
-  static double _adjustFaceRatio(double parentRatio, AgeCharacteristics ageChar) {
+  static double _adjustFaceRatio(
+      double parentRatio, AgeCharacteristics ageChar) {
     // Babies have more rounded faces
     final babyRatio = parentRatio * 0.9 + ageChar.faceRatio * 0.1;
     return babyRatio.clamp(0.7, 1.0);
-  }
-
-  /// Adjust eye ratio for baby age
-  static double _adjustEyeRatio(double parentRatio, AgeCharacteristics ageChar) {
-    // Babies have larger eyes relative to face
-    final babyRatio = parentRatio * 0.8 + ageChar.eyeSize * 0.2;
-    return babyRatio.clamp(0.1, 0.4);
-  }
-
-  /// Adjust face shape for baby age
-  static String _adjustFaceShape(String parentShape, AgeCharacteristics ageChar) {
-    // Babies tend to have rounder faces
-    final shapeMapping = {
-      'oval': 'round',
-      'heart': 'round',
-      'square': 'oval',
-      'long': 'oval',
-      'round': 'round',
-    };
-    
-    return shapeMapping[parentShape.toLowerCase()] ?? 'round';
   }
 
   /// Calculate cuteness score based on age and features
@@ -118,18 +100,18 @@ class AgeSimulationService {
     FacialFeatures parentFeatures,
   ) {
     double score = 0.0;
-    
+
     // Base cuteness from age (newborns are cutest)
     score += (1.0 - (ageChar.age / 36.0)) * 0.4;
-    
+
     // Cuteness from facial proportions
     score += ageChar.cheekFullness * 0.2;
     score += ageChar.eyeSize * 0.2;
     score += ageChar.skinSmoothness * 0.1;
-    
+
     // Cuteness from parent features
     if (parentFeatures.isWellAligned) score += 0.1;
-    
+
     return score.clamp(0.0, 1.0);
   }
 
@@ -161,19 +143,20 @@ class AgeSimulationService {
   ) {
     final targetAgeChar = _ageCharacteristics[targetAgeGroup];
     if (targetAgeChar == null) return currentFeatures;
-    
+
     // Calculate progression factor
     final currentAge = currentFeatures.age;
     final targetAge = targetAgeChar.age;
     final progressionFactor = (targetAge - currentAge) / 36.0; // Max 3 years
-    
+
     // Interpolate features
-    final newFaceRatio = currentFeatures.faceRatio + 
-        (targetAgeChar.faceRatio - currentFeatures.faceRatio) * progressionFactor;
-    
-    final newEyeSize = currentFeatures.eyeSize + 
+    final newFaceRatio = currentFeatures.faceRatio +
+        (targetAgeChar.faceRatio - currentFeatures.faceRatio) *
+            progressionFactor;
+
+    final newEyeSize = currentFeatures.eyeSize +
         (targetAgeChar.eyeSize - currentFeatures.eyeSize) * progressionFactor;
-    
+
     return BabyAgeFeatures(
       ageGroup: targetAgeGroup,
       age: targetAge,
@@ -187,7 +170,8 @@ class AgeSimulationService {
       hairDensity: targetAgeChar.hairDensity,
       gender: currentFeatures.gender,
       parentFeatures: currentFeatures.parentFeatures,
-      cutenessScore: _calculateCutenessScore(targetAgeChar, currentFeatures.parentFeatures),
+      cutenessScore: _calculateCutenessScore(
+          targetAgeChar, currentFeatures.parentFeatures),
     );
   }
 }
@@ -257,7 +241,7 @@ class BabyAgeFeatures {
       '1year': 'Your active 1-year-old with that infectious smile!',
       '3years': 'Your playful 3-year-old with that mischievous grin!',
     };
-    
+
     return descriptions[ageGroup] ?? 'Your beautiful baby at $age months!';
   }
 

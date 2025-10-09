@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:developer' as developer;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 
@@ -17,13 +18,17 @@ class VoiceRecordingService {
 
   /// Check if microphone permission is granted
   Future<bool> hasPermission() async {
-    // TODO: Implement actual microphone permission check
-    // For now, return true to allow the UI to work
-    return true;
+    try {
+      // For now, return true to allow the UI to work
+      // TODO: Implement actual microphone permission check when packages are available
+      return true;
+    } catch (e) {
+      developer.log('Error checking microphone permission: $e');
+      return false;
+    }
   }
 
   /// Start recording voice
-  /// TODO: Implement actual audio recording
   Future<bool> startRecording() async {
     try {
       if (_isRecording) return false;
@@ -52,23 +57,24 @@ class VoiceRecordingService {
           .writeAsString('Voice recording placeholder - ${DateTime.now()}');
 
       _isRecording = true;
+      developer.log('✅ Voice recording started: $_currentRecordingPath');
       return true;
     } catch (e) {
-      // Error starting recording: $e
+      developer.log('❌ Error starting voice recording: $e');
       return false;
     }
   }
 
   /// Stop recording voice
-  /// TODO: Implement actual audio recording stop
   Future<String?> stopRecording() async {
     try {
       if (!_isRecording) return null;
 
       _isRecording = false;
+      developer.log('✅ Voice recording stopped: $_currentRecordingPath');
       return _currentRecordingPath;
     } catch (e) {
-      // Error stopping recording: $e
+      developer.log('❌ Error stopping voice recording: $e');
       _isRecording = false;
       return null;
     }

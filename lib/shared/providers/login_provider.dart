@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:developer' as developer;
 import '../../shared/models/user.dart';
 import '../../shared/services/google_signin_service.dart';
+import '../../shared/services/bond_profile_service.dart';
 
 /// Login state
 class LoginState {
@@ -62,20 +64,20 @@ class LoginProvider extends StateNotifier<LoginState> {
           user: user,
           currentStep: user.isComplete ? LoginStep.complete : LoginStep.gender,
         );
-        print('✅ [LoginProvider] User found: ${user.email}');
+        developer.log('✅ [LoginProvider] User found: ${user.email}');
       } else {
         state = state.copyWith(
           isLoading: false,
           currentStep: LoginStep.login,
         );
-        print('🔐 [LoginProvider] No user found');
+        developer.log('🔐 [LoginProvider] No user found');
       }
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
       );
-      print('❌ [LoginProvider] Error checking login status: $e');
+      developer.log('❌ [LoginProvider] Error checking login status: $e');
     }
   }
 
@@ -92,20 +94,20 @@ class LoginProvider extends StateNotifier<LoginState> {
           user: user,
           currentStep: LoginStep.gender,
         );
-        print('✅ [LoginProvider] Google Sign-In successful: ${user.email}');
+        developer.log('✅ [LoginProvider] Google Sign-In successful: ${user.email}');
       } else {
         state = state.copyWith(
           isLoading: false,
           error: 'Google Sign-In failed',
         );
-        print('❌ [LoginProvider] Google Sign-In failed');
+        developer.log('❌ [LoginProvider] Google Sign-In failed');
       }
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
       );
-      print('❌ [LoginProvider] Google Sign-In error: $e');
+      developer.log('❌ [LoginProvider] Google Sign-In error: $e');
     }
   }
 
@@ -121,7 +123,7 @@ class LoginProvider extends StateNotifier<LoginState> {
       currentStep: LoginStep.yourName,
     );
 
-    print('✅ [LoginProvider] Gender updated: $gender');
+    developer.log('✅ [LoginProvider] Gender updated: $gender');
   }
 
   /// Update your name
@@ -139,7 +141,7 @@ class LoginProvider extends StateNotifier<LoginState> {
       currentStep: LoginStep.partnerName,
     );
 
-    print('✅ [LoginProvider] Your name updated: $firstName $lastName');
+    developer.log('✅ [LoginProvider] Your name updated: $firstName $lastName');
   }
 
   /// Update partner name
@@ -154,7 +156,7 @@ class LoginProvider extends StateNotifier<LoginState> {
       currentStep: LoginStep.bondName,
     );
 
-    print('✅ [LoginProvider] Partner name updated: $partnerName');
+    developer.log('✅ [LoginProvider] Partner name updated: $partnerName');
   }
 
   /// Update bond name
@@ -167,12 +169,15 @@ class LoginProvider extends StateNotifier<LoginState> {
     );
     await _googleSignInService.updateUser(updatedUser);
 
+    // Also save to BondProfileService for profile screen and dashboard
+    await BondProfileService.instance.saveBondName(bondName);
+
     state = state.copyWith(
       user: updatedUser,
       currentStep: LoginStep.complete,
     );
 
-    print('✅ [LoginProvider] Bond name updated: $bondName');
+    developer.log('✅ [LoginProvider] Bond name updated: $bondName');
   }
 
   /// Skip bond name
@@ -182,19 +187,22 @@ class LoginProvider extends StateNotifier<LoginState> {
     final updatedUser = state.user!.copyWith(isComplete: true);
     await _googleSignInService.updateUser(updatedUser);
 
+    // Clear any existing bond name from BondProfileService
+    await BondProfileService.instance.saveBondName('');
+
     state = state.copyWith(
       user: updatedUser,
       currentStep: LoginStep.complete,
     );
 
-    print('✅ [LoginProvider] Bond name skipped');
+    developer.log('✅ [LoginProvider] Bond name skipped');
   }
 
   /// Sign out
   Future<void> signOut() async {
     await _googleSignInService.signOut();
     state = const LoginState();
-    print('✅ [LoginProvider] Sign out successful');
+    developer.log('✅ [LoginProvider] Sign out successful');
   }
 }
 

@@ -1,393 +1,136 @@
-import 'package:flutter/foundation.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import '../../features/analytics/domain/entities/analytics_event_entity.dart';
+import 'dart:developer' as developer;
+import 'hive_service.dart';
 
-/// Analytics service for user tracking
-/// Follows master plan analytics standards
+/// Analytics service for tracking user behavior and app performance
 class AnalyticsService {
   static final AnalyticsService _instance = AnalyticsService._internal();
   factory AnalyticsService() => _instance;
   AnalyticsService._internal();
 
-  late FirebaseAnalytics _firebaseAnalytics;
-  late FirebaseCrashlytics _crashlytics;
-  bool _isInitialized = false;
+  final HiveService _hiveService = HiveService();
+  static const String _boxName = 'analytics_box';
+  static const String _analyticsKey = 'analytics_data';
 
-  /// Initialize analytics service
-  Future<void> initialize() async {
-    if (_isInitialized) return;
+  /// Get analytics service instance
+  static AnalyticsService get instance => _instance;
 
+  /// Track user event
+  Future<void> trackEvent(
+      String eventName, Map<String, dynamic> parameters) async {
     try {
-      _firebaseAnalytics = FirebaseAnalytics.instance;
-      _crashlytics = FirebaseCrashlytics.instance;
+      // Track locally with Hive
+      await _hiveService.ensureBoxOpen(_boxName);
+      final analyticsData = await _getAnalyticsData();
 
-      // Enable analytics collection
-      await _firebaseAnalytics.setAnalyticsCollectionEnabled(true);
+      analyticsData['events'] = analyticsData['events'] ?? [];
+      analyticsData['events'].add({
+        'eventName': eventName,
+        'parameters': parameters,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
 
-      _isInitialized = true;
+      await _hiveService.store(_boxName, _analyticsKey, analyticsData);
+
+      // Track with Firebase Analytics
+      await FirebaseAnalytics.instance.logEvent(
+        name: eventName,
+        parameters: parameters,
+      );
+
+      developer.log('📊 [AnalyticsService] Event tracked: $eventName');
     } catch (e) {
-      if (kDebugMode) {
-        print('Failed to initialize analytics: $e');
-      }
+      developer.log('❌ [AnalyticsService] Error tracking event: $e');
     }
   }
 
   /// Track screen view
-  Future<void> trackScreenView({
-    required String screenName,
-    String? screenClass,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
+  Future<void> trackScreenView(String screenName) async {
     try {
-      await _firebaseAnalytics.logScreenView(
-        screenName: screenName,
-        screenClass: screenClass,
-        parameters: parameters,
-      );
+      await FirebaseAnalytics.instance.logScreenView(screenName: screenName);
+      await trackEvent('screen_view', {'screen_name': screenName});
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      developer.log('❌ [AnalyticsService] Error tracking screen view: $e');
     }
   }
 
-  /// Track user action
-  Future<void> trackUserAction({
-    required String action,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
+  /// Track user property
+  Future<void> setUserProperty(String name, String value) async {
     try {
-      await _firebaseAnalytics.logEvent(
-        name: 'user_action',
-        parameters: {
-          'action': action,
-          ...?parameters,
-        },
-      );
+      await FirebaseAnalytics.instance
+          .setUserProperty(name: name, value: value);
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      developer.log('❌ [AnalyticsService] Error setting user property: $e');
     }
   }
 
-  /// Track business event
-  Future<void> trackBusinessEvent({
-    required String eventName,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
+  /// Get analytics data
+  Future<Map<String, dynamic>> getAnalyticsData() async {
     try {
-      await _firebaseAnalytics.logEvent(
-        name: eventName,
-        parameters: parameters,
-      );
+      return await _getAnalyticsData();
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      developer.log('❌ [AnalyticsService] Error getting analytics data: $e');
+      return _getDefaultAnalyticsData();
     }
   }
 
-  /// Track performance metric
-  Future<void> trackPerformanceMetric({
-    required String metricName,
-    required double value,
-    String? unit,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
+  /// Get analytics data from Hive
+  Future<Map<String, dynamic>> _getAnalyticsData() async {
+    await _hiveService.ensureBoxOpen(_boxName);
+    final data = _hiveService.retrieve(_boxName, _analyticsKey);
 
+    if (data != null) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    return _getDefaultAnalyticsData();
+  }
+
+  /// Get default analytics data
+  Map<String, dynamic> _getDefaultAnalyticsData() {
+    return {
+      'totalUsers': 0,
+      'activeSessions': 0,
+      'totalGenerations': 0,
+      'averageSessionDuration': 0,
+      'dailyActiveUsers': 0,
+      'weeklyRetention': 0.0,
+      'featureUsageCount': 0,
+      'shareRate': 0.0,
+      'appLaunchTime': 0,
+      'memoryUsage': 0,
+      'frameRate': 0.0,
+      'crashRate': 0.0,
+      'recentEvents': [],
+      'events': [],
+    };
+  }
+
+  /// Update analytics metrics
+  Future<void> updateMetrics(Map<String, dynamic> metrics) async {
     try {
-      await _firebaseAnalytics.logEvent(
-        name: 'performance_metric',
-        parameters: {
-          'metric_name': metricName,
-          'value': value,
-          if (unit != null) 'unit': unit,
-          ...?parameters,
-        },
-      );
+      await _hiveService.ensureBoxOpen(_boxName);
+      final analyticsData = await _getAnalyticsData();
+
+      analyticsData.addAll(metrics);
+      analyticsData['lastUpdated'] = DateTime.now().toIso8601String();
+
+      await _hiveService.store(_boxName, _analyticsKey, analyticsData);
+
+      developer.log('📊 [AnalyticsService] Metrics updated');
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      developer.log('❌ [AnalyticsService] Error updating metrics: $e');
     }
   }
 
-  /// Track error
-  Future<void> trackError({
-    required String error,
-    String? stackTrace,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
+  /// Clear analytics data
+  Future<void> clearAnalyticsData() async {
     try {
-      await _firebaseAnalytics.logEvent(
-        name: 'error_occurred',
-        parameters: {
-          'error': error,
-          if (stackTrace != null) 'stack_trace': stackTrace,
-          ...?parameters,
-        },
-      );
+      await _hiveService.ensureBoxOpen(_boxName);
+      await _hiveService.delete(_boxName, _analyticsKey);
+      developer.log('📊 [AnalyticsService] Analytics data cleared');
     } catch (e) {
-      await _crashlytics.recordError(e, null);
+      developer.log('❌ [AnalyticsService] Error clearing analytics data: $e');
     }
   }
-
-  /// Track engagement event
-  Future<void> trackEngagementEvent({
-    required String eventName,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
-    try {
-      await _firebaseAnalytics.logEvent(
-        name: 'engagement_event',
-        parameters: {
-          'event_name': eventName,
-          ...?parameters,
-        },
-      );
-    } catch (e) {
-      await _crashlytics.recordError(e, null);
-    }
-  }
-
-  /// Track baby generation event
-  Future<void> trackBabyGeneration({
-    required String generationType,
-    required int processingTime,
-    required bool success,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
-    try {
-      await _firebaseAnalytics.logEvent(
-        name: 'baby_generation',
-        parameters: {
-          'generation_type': generationType,
-          'processing_time': processingTime,
-          'success': success,
-          ...?parameters,
-        },
-      );
-    } catch (e) {
-      await _crashlytics.recordError(e, null);
-    }
-  }
-
-  /// Track quiz completion
-  Future<void> trackQuizCompletion({
-    required String quizType,
-    required int score,
-    required int totalQuestions,
-    required Duration completionTime,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
-    try {
-      await _firebaseAnalytics.logEvent(
-        name: 'quiz_completion',
-        parameters: {
-          'quiz_type': quizType,
-          'score': score,
-          'total_questions': totalQuestions,
-          'completion_time': completionTime.inSeconds,
-          ...?parameters,
-        },
-      );
-    } catch (e) {
-      await _crashlytics.recordError(e, null);
-    }
-  }
-
-  /// Track premium subscription
-  Future<void> trackPremiumSubscription({
-    required String subscriptionType,
-    required double price,
-    required String currency,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
-    try {
-      await _firebaseAnalytics.logEvent(
-        name: 'premium_subscription',
-        parameters: {
-          'subscription_type': subscriptionType,
-          'price': price,
-          'currency': currency,
-          ...?parameters,
-        },
-      );
-    } catch (e) {
-      await _crashlytics.recordError(e, null);
-    }
-  }
-
-  /// Track social sharing
-  Future<void> trackSocialSharing({
-    required String platform,
-    required String contentType,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
-    try {
-      await _firebaseAnalytics.logEvent(
-        name: 'social_sharing',
-        parameters: {
-          'platform': platform,
-          'content_type': contentType,
-          ...?parameters,
-        },
-      );
-    } catch (e) {
-      await _crashlytics.recordError(e, null);
-    }
-  }
-
-  /// Set user properties
-  Future<void> setUserProperties({
-    required String userId,
-    Map<String, dynamic>? properties,
-  }) async {
-    if (!_isInitialized) return;
-
-    try {
-      await _firebaseAnalytics.setUserId(id: userId);
-
-      if (properties != null) {
-        for (final entry in properties.entries) {
-          await _firebaseAnalytics.setUserProperty(
-            name: entry.key,
-            value: entry.value.toString(),
-          );
-        }
-      }
-    } catch (e) {
-      await _crashlytics.recordError(e, null);
-    }
-  }
-
-  /// Track app lifecycle events
-  Future<void> trackAppLifecycleEvent({
-    required String event,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
-    try {
-      await _firebaseAnalytics.logEvent(
-        name: 'app_lifecycle',
-        parameters: {
-          'event': event,
-          ...?parameters,
-        },
-      );
-    } catch (e) {
-      await _crashlytics.recordError(e, null);
-    }
-  }
-
-  /// Track feature usage
-  Future<void> trackFeatureUsage({
-    required String featureName,
-    required String action,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
-    try {
-      await _firebaseAnalytics.logEvent(
-        name: 'feature_usage',
-        parameters: {
-          'feature_name': featureName,
-          'action': action,
-          ...?parameters,
-        },
-      );
-    } catch (e) {
-      await _crashlytics.recordError(e, null);
-    }
-  }
-
-  /// Track user journey
-  Future<void> trackUserJourney({
-    required String step,
-    required String journey,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
-    try {
-      await _firebaseAnalytics.logEvent(
-        name: 'user_journey',
-        parameters: {
-          'step': step,
-          'journey': journey,
-          ...?parameters,
-        },
-      );
-    } catch (e) {
-      await _crashlytics.recordError(e, null);
-    }
-  }
-
-  /// Track conversion event
-  Future<void> trackConversion({
-    required String conversionType,
-    required double value,
-    String? currency,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
-    try {
-      await _firebaseAnalytics.logEvent(
-        name: 'conversion',
-        parameters: {
-          'conversion_type': conversionType,
-          'value': value,
-          if (currency != null) 'currency': currency,
-          ...?parameters,
-        },
-      );
-    } catch (e) {
-      await _crashlytics.recordError(e, null);
-    }
-  }
-
-  /// Track custom event
-  Future<void> trackCustomEvent({
-    required String eventName,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (!_isInitialized) return;
-
-    try {
-      await _firebaseAnalytics.logEvent(
-        name: eventName,
-        parameters: parameters,
-      );
-    } catch (e) {
-      await _crashlytics.recordError(e, null);
-    }
-  }
-
-  /// Get analytics instance
-  FirebaseAnalytics get analytics => _firebaseAnalytics;
-
-  /// Get crashlytics instance
-  FirebaseCrashlytics get crashlytics => _crashlytics;
 }
-
-/// Analytics service provider for Riverpod
-final analyticsServiceProvider = Provider<AnalyticsService>((ref) {
-  return AnalyticsService();
-});

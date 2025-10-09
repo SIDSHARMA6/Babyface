@@ -114,6 +114,33 @@ class RelationshipInsight {
         return '💖';
     }
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'category': category,
+      'score': score,
+      'recommendation': recommendation,
+      'generatedAt': generatedAt.toIso8601String(),
+      'isPositive': isPositive,
+    };
+  }
+
+  factory RelationshipInsight.fromMap(Map<String, dynamic> map) {
+    return RelationshipInsight(
+      id: map['id'] ?? '',
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
+      category: map['category'] ?? '',
+      score: (map['score'] ?? 0.0).toDouble(),
+      recommendation: map['recommendation'] ?? '',
+      generatedAt: DateTime.parse(
+          map['generatedAt'] ?? DateTime.now().toIso8601String()),
+      isPositive: map['isPositive'] ?? true,
+    );
+  }
 }
 
 /// Achievement system for gamification
@@ -155,6 +182,36 @@ class Achievement {
       case AchievementType.goalSetter:
         return '🏆';
     }
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'iconPath': iconPath,
+      'type': type.name,
+      'unlockedAt': unlockedAt.toIso8601String(),
+      'pointsAwarded': pointsAwarded,
+      'isRare': isRare,
+    };
+  }
+
+  factory Achievement.fromMap(Map<String, dynamic> map) {
+    return Achievement(
+      id: map['id'] ?? '',
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
+      iconPath: map['iconPath'] ?? '',
+      type: AchievementType.values.firstWhere(
+        (e) => e.name == map['type'],
+        orElse: () => AchievementType.firstQuiz,
+      ),
+      unlockedAt:
+          DateTime.parse(map['unlockedAt'] ?? DateTime.now().toIso8601String()),
+      pointsAwarded: map['pointsAwarded'] ?? 0,
+      isRare: map['isRare'] ?? false,
+    );
   }
 }
 
@@ -239,6 +296,43 @@ class MiniChallenge {
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
   Duration get timeRemaining => expiresAt.difference(DateTime.now());
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'type': type.name,
+      'pointsReward': pointsReward,
+      'createdAt': createdAt.toIso8601String(),
+      'completedAt': completedAt?.toIso8601String(),
+      'expiresAt': expiresAt.toIso8601String(),
+      'isCompleted': isCompleted,
+      'completionNote': completionNote,
+    };
+  }
+
+  factory MiniChallenge.fromMap(Map<String, dynamic> map) {
+    return MiniChallenge(
+      id: map['id'] ?? '',
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
+      type: ChallengeType.values.firstWhere(
+        (e) => e.name == map['type'],
+        orElse: () => ChallengeType.daily,
+      ),
+      pointsReward: map['pointsReward'] ?? 0,
+      createdAt:
+          DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
+      completedAt: map['completedAt'] != null
+          ? DateTime.parse(map['completedAt'])
+          : null,
+      expiresAt:
+          DateTime.parse(map['expiresAt'] ?? DateTime.now().toIso8601String()),
+      isCompleted: map['isCompleted'] ?? false,
+      completionNote: map['completionNote'],
+    );
+  }
 }
 
 enum ChallengeType {

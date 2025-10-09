@@ -7,9 +7,6 @@ import '../../../../core/theme/responsive_utils.dart';
 import '../../../../shared/widgets/optimized_widget.dart';
 import '../providers/memory_journal_provider.dart';
 import '../../data/models/memory_model.dart';
-import '../widgets/shimmer_widget.dart';
-import 'add_memory_screen.dart';
-import 'journey_preview_screen.dart';
 
 /// Memory Journal Screen
 /// Follows master plan theme standards and performance requirements
@@ -22,6 +19,61 @@ class MemoryJournalScreen extends OptimizedStatefulWidget {
 }
 
 class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
+  /// Build image widget with error handling for missing files
+  Widget _buildImageWidget(String photoPath) {
+    return FutureBuilder<bool>(
+      future: File(photoPath).exists(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            color: AppTheme.primaryPink.withValues(alpha: 0.1),
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (snapshot.data == true) {
+          return Image.file(
+            File(photoPath),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildImageErrorWidget();
+            },
+          );
+        } else {
+          return _buildImageErrorWidget();
+        }
+      },
+    );
+  }
+
+  /// Build error widget for missing images
+  Widget _buildImageErrorWidget() {
+    return Container(
+      color: AppTheme.primaryPink.withValues(alpha: 0.1),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.image_not_supported,
+            size: 48,
+            color: AppTheme.primaryPink.withValues(alpha: 0.5),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Image not found',
+            style: BabyFont.bodyS.copyWith(
+              color: AppTheme.primaryPink.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget buildOptimized(BuildContext context, WidgetRef ref) {
     final state = ref.watch(memoryJournalProvider);
@@ -48,37 +100,15 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
         padding: context.responsivePadding,
         child: Column(
           children: [
-            if (state.isLoading) ...[
-              Expanded(child: _buildLoadingState()),
-            ] else if (state.memories.isEmpty) ...[
+            // INSTANT RESPONSE - NO LOADING STATES
+            if (state.memories.isEmpty) ...[
               Expanded(child: _buildEmptyState(context, notifier)),
             ] else ...[
               Expanded(
                   child: _buildMemoriesList(state.memories, context, notifier)),
             ],
-            if (state.errorMessage != null) ...[
-              _buildErrorMessage(state.errorMessage!, notifier),
-            ],
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildLoadingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(color: AppTheme.primary),
-          SizedBox(height: context.responsiveHeight(2)),
-          OptimizedText(
-            'Loading memories...',
-            style: BabyFont.bodyL.copyWith(
-              color: AppTheme.textSecondary,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -142,27 +172,13 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
             ),
           ),
         Expanded(
-          child: memories.isEmpty
-              ? ListView.builder(
-                  itemCount: 3, // Show 3 shimmer cards
-                  itemBuilder: (context, index) {
-                    return Padding(
-                      padding:
-                          EdgeInsets.only(bottom: context.responsiveHeight(1)),
-                      child: ShimmerCard(
-                        height: 120,
-                        borderRadius: context.responsiveRadius(16),
-                      ),
-                    );
-                  },
-                )
-              : ListView.builder(
-                  itemCount: memories.length,
-                  itemBuilder: (context, index) {
-                    final memory = memories[index];
-                    return _buildMemoryCard(memory, context, notifier);
-                  },
-                ),
+          child: ListView.builder(
+            itemCount: memories.length,
+            itemBuilder: (context, index) {
+              final memory = memories[index];
+              return _buildMemoryCard(memory, context, notifier);
+            },
+          ),
         ),
       ],
     );
@@ -314,12 +330,7 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
               child: ClipRRect(
                 borderRadius:
                     BorderRadius.circular(context.responsiveRadius(8)),
-                child: Image.file(
-                  File(memory.photoPath!),
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
+                child: _buildImageWidget(memory.photoPath!),
               ),
             ),
           ],
@@ -374,41 +385,6 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
     );
   }
 
-  Widget _buildErrorMessage(String error, MemoryJournalNotifier notifier) {
-    return Container(
-      margin: EdgeInsets.only(top: context.responsiveHeight(1)),
-      padding: context.responsivePadding,
-      decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(context.responsiveRadius(12)),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.error_outline,
-            color: Colors.red,
-            size: context.responsiveFont(20),
-          ),
-          SizedBox(width: context.responsiveWidth(2)),
-          Expanded(
-            child: OptimizedText(
-              error,
-              style: BabyFont.bodyM.copyWith(
-                color: Colors.red,
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: () => notifier.clearError(),
-            icon: const Icon(Icons.close),
-            color: Colors.red,
-          ),
-        ],
-      ),
-    );
-  }
-
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
@@ -426,21 +402,11 @@ class _MemoryJournalScreenState extends OptimizedState<MemoryJournalScreen> {
 
   // Navigation methods
   void _navigateToAddMemory(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const AddMemoryScreen(),
-      ),
-    );
+    Navigator.pushNamed(context, '/main/add-memory');
   }
 
   void _navigateToJourneyPreview(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const JourneyPreviewScreen(),
-      ),
-    );
+    Navigator.pushNamed(context, '/main/memory-journey-preview');
   }
 
   // Mood helper methods

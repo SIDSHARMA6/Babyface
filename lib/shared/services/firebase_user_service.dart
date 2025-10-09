@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:typed_data';
@@ -28,7 +29,7 @@ class FirebaseUserService {
     DateTime? relationshipStartDate,
   }) async {
     if (!_firebaseService.isInitialized || _firebaseService.firestore == null) {
-      print('Firebase not initialized, skipping user profile creation');
+      developer.log('Firebase not initialized, skipping user profile creation');
       return;
     }
 
@@ -102,9 +103,9 @@ class FirebaseUserService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      print('User profile created successfully for $userId');
+      developer.log('User profile created successfully for $userId');
     } catch (e) {
-      print('Error creating user profile: $e');
+      developer.log('Error creating user profile: $e');
       // Don't rethrow - allow app to continue
     }
   }
@@ -115,7 +116,7 @@ class FirebaseUserService {
     Map<String, dynamic>? profileData,
   }) async {
     if (!_firebaseService.isInitialized || _firebaseService.firestore == null) {
-      print('Firebase not initialized, skipping user profile update');
+      developer.log('Firebase not initialized, skipping user profile update');
       return;
     }
 
@@ -129,9 +130,9 @@ class FirebaseUserService {
           .collection('users')
           .doc(userId)
           .update(updateData);
-      print('User profile updated successfully for $userId');
+      developer.log('User profile updated successfully for $userId');
     } catch (e) {
-      print('Error updating user profile: $e');
+      developer.log('Error updating user profile: $e');
       // Don't rethrow - allow app to continue
     }
   }
@@ -139,7 +140,7 @@ class FirebaseUserService {
   /// Get user profile
   Future<Map<String, dynamic>?> getUserProfile(String userId) async {
     if (!_firebaseService.isInitialized || _firebaseService.firestore == null) {
-      print('Firebase not initialized, returning null for user profile');
+      developer.log('Firebase not initialized, returning null for user profile');
       return null;
     }
 
@@ -153,7 +154,7 @@ class FirebaseUserService {
       }
       return null;
     } catch (e) {
-      print('Error getting user profile: $e');
+      developer.log('Error getting user profile: $e');
       return null;
     }
   }
@@ -190,9 +191,9 @@ class FirebaseUserService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      print('User login saved successfully for $userId');
+      developer.log('User login saved successfully for $userId');
     } catch (e) {
-      print('Error saving user login: $e');
+      developer.log('Error saving user login: $e');
       // Don't rethrow as this is not critical
     }
   }
@@ -204,7 +205,7 @@ class FirebaseUserService {
     Map<String, dynamic>? activityData,
   }) async {
     if (!_firebaseService.isInitialized || _firebaseService.firestore == null) {
-      print('Firebase not initialized, skipping user activity save');
+      developer.log('Firebase not initialized, skipping user activity save');
       return;
     }
 
@@ -244,9 +245,9 @@ class FirebaseUserService {
           .collection('users')
           .doc(userId)
           .update(updateData);
-      print('User activity saved successfully for $userId');
+      developer.log('User activity saved successfully for $userId');
     } catch (e) {
-      print('Error saving user activity: $e');
+      developer.log('Error saving user activity: $e');
       // Don't rethrow as this is not critical
     }
   }
@@ -309,9 +310,9 @@ class FirebaseUserService {
         },
       );
 
-      print('Memory saved successfully for user $userId');
+      developer.log('Memory saved successfully for user $userId');
     } catch (e) {
-      print('Error saving memory: $e');
+      developer.log('Error saving memory: $e');
       rethrow;
     }
   }
@@ -319,22 +320,27 @@ class FirebaseUserService {
   /// Get user's memories
   Future<List<Map<String, dynamic>>> getUserMemories(String userId) async {
     if (!_firebaseService.isInitialized || _firebaseService.firestore == null) {
-      print('Firebase not initialized, returning empty memories list');
+      developer.log('Firebase not initialized, returning empty memories list');
       return [];
     }
 
     try {
-      final doc = await _firebaseService.firestore!
-          .collection('memory_journals')
+      // Use the same structure as getMemories() method
+      final snapshot = await _firebaseService.firestore!
+          .collection('users')
           .doc(userId)
+          .collection('memories')
+          .orderBy('timestamp', descending: true)
           .get();
-      if (doc.exists) {
-        final data = doc.data();
-        return List<Map<String, dynamic>>.from(data?['memories'] ?? []);
-      }
-      return [];
+
+      return snapshot.docs
+          .map((doc) => {
+                ...doc.data(),
+                'id': doc.id,
+              })
+          .toList();
     } catch (e) {
-      print('Error getting user memories: $e');
+      developer.log('Error getting user memories: $e');
       return [];
     }
   }
@@ -380,9 +386,9 @@ class FirebaseUserService {
         },
       );
 
-      print('Baby generation saved successfully for user $userId');
+      developer.log('Baby generation saved successfully for user $userId');
     } catch (e) {
-      print('Error saving baby generation: $e');
+      developer.log('Error saving baby generation: $e');
       rethrow;
     }
   }
@@ -391,7 +397,7 @@ class FirebaseUserService {
   Future<List<Map<String, dynamic>>> getUserBabyGenerations(
       String userId) async {
     if (!_firebaseService.isInitialized || _firebaseService.firestore == null) {
-      print('Firebase not initialized, returning empty generations list');
+      developer.log('Firebase not initialized, returning empty generations list');
       return [];
     }
 
@@ -406,7 +412,7 @@ class FirebaseUserService {
       }
       return [];
     } catch (e) {
-      print('Error getting user baby generations: $e');
+      developer.log('Error getting user baby generations: $e');
       return [];
     }
   }
@@ -430,10 +436,10 @@ class FirebaseUserService {
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
-      print('File uploaded successfully: $downloadUrl');
+      developer.log('File uploaded successfully: $downloadUrl');
       return downloadUrl;
     } catch (e) {
-      print('Error uploading file: $e');
+      developer.log('Error uploading file: $e');
       rethrow;
     }
   }
@@ -441,7 +447,7 @@ class FirebaseUserService {
   /// Delete user account and all associated data
   Future<void> deleteUserAccount(String userId) async {
     if (!_firebaseService.isInitialized || _firebaseService.firestore == null) {
-      print('Firebase not initialized, cannot delete user account');
+      developer.log('Firebase not initialized, cannot delete user account');
       return;
     }
 
@@ -489,13 +495,13 @@ class FirebaseUserService {
             await item.delete();
           }
         } catch (e) {
-          print('Error deleting storage files: $e');
+          developer.log('Error deleting storage files: $e');
         }
       }
 
-      print('User account deleted successfully for $userId');
+      developer.log('User account deleted successfully for $userId');
     } catch (e) {
-      print('Error deleting user account: $e');
+      developer.log('Error deleting user account: $e');
       // Don't rethrow - allow app to continue
     }
   }
@@ -528,7 +534,7 @@ class FirebaseUserService {
               })
           .toList();
     } catch (e) {
-      print('Error getting memories: $e');
+      developer.log('Error getting memories: $e');
       return [];
     }
   }
@@ -586,7 +592,7 @@ class FirebaseUserService {
         },
       );
     } catch (e) {
-      print('Error updating memory: $e');
+      developer.log('Error updating memory: $e');
       // Don't rethrow as this is not critical
     }
   }
@@ -620,7 +626,7 @@ class FirebaseUserService {
         },
       );
     } catch (e) {
-      print('Error deleting memory: $e');
+      developer.log('Error deleting memory: $e');
       // Don't rethrow as this is not critical
     }
   }
@@ -653,7 +659,7 @@ class FirebaseUserService {
         },
       );
     } catch (e) {
-      print('Error toggling memory favorite: $e');
+      developer.log('Error toggling memory favorite: $e');
       // Don't rethrow as this is not critical
     }
   }

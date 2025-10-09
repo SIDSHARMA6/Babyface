@@ -1,6 +1,8 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:developer' as developer;
 import '../domain/models/couple_goals_models.dart';
 import '../../quiz/data/quiz_repository.dart';
+import '../../../shared/services/firebase_service.dart';
 
 /// Repository for managing couple goals data with offline-first approach
 class CoupleGoalsRepository {
@@ -14,6 +16,7 @@ class CoupleGoalsRepository {
   late Box<MiniChallenge> _challengesBox;
 
   final QuizRepository _quizRepository = QuizRepository();
+  final FirebaseService _firebaseService = FirebaseService();
 
   /// Initialize Hive boxes
   Future<void> initialize() async {
@@ -66,15 +69,24 @@ class CoupleGoalsRepository {
     final quizProgress = await _quizRepository.getUserProgress(userId);
     final statistics = await _quizRepository.getQuizStatistics(userId);
 
+    // Get real quiz data
+    final perfectScores = await _quizRepository.getPerfectScoresCount(userId);
+    final currentStreak = await _quizRepository.getCurrentStreak(userId);
+    final longestStreak = await _quizRepository.getLongestStreak(userId);
+    final categoryScores = await _quizRepository.getCategoryScores(userId);
+    final firstQuizDate = await _quizRepository.getFirstQuizDate(userId);
+    final puzzlesSolved = await _quizRepository.calculatePuzzlesSolved(userId);
+
     // Calculate love percentage based on quiz performance
     final lovePercentage = _calculateLovePercentage(quizProgress, statistics);
 
     // Generate insights based on quiz data
-    final insights = await _generateInsights(quizProgress, statistics);
+    final insights = await _generateInsights(
+        quizProgress, statistics, perfectScores, currentStreak);
 
     // Check for new achievements
-    final newAchievements =
-        await _checkForNewAchievements(data, quizProgress, statistics);
+    final newAchievements = await _checkForNewAchievements(
+        data, quizProgress, statistics, perfectScores, currentStreak);
 
     // Update challenges
     final updatedChallenges = await _updateChallenges(data.activeChallenges);
@@ -83,7 +95,7 @@ class CoupleGoalsRepository {
       lovePercentage: lovePercentage,
       totalQuizzesCompleted: statistics['totalQuizzesCompleted'] as int,
       totalGamesCompleted: quizProgress.totalQuizzesCompleted,
-      totalPuzzlesSolved: _calculatePuzzlesSolved(quizProgress),
+      totalPuzzlesSolved: puzzlesSolved,
       insights: insights,
       achievements: [...data.achievements, ...newAchievements],
       activeChallenges: updatedChallenges,
@@ -120,7 +132,10 @@ class CoupleGoalsRepository {
 
   /// Generate relationship insights based on quiz data
   Future<List<RelationshipInsight>> _generateInsights(
-      dynamic quizProgress, Map<String, dynamic> statistics) async {
+      dynamic quizProgress,
+      Map<String, dynamic> statistics,
+      int perfectScores,
+      int currentStreak) async {
     final insights = <RelationshipInsight>[];
     final totalQuizzes = statistics['totalQuizzesCompleted'] as int;
 
@@ -134,6 +149,36 @@ class CoupleGoalsRepository {
         score: 85.0,
         recommendation:
             'Keep exploring different quiz categories to deepen your bond!',
+        generatedAt: DateTime.now(),
+        isPositive: true,
+      ));
+    }
+
+    if (perfectScores >= 3) {
+      insights.add(RelationshipInsight(
+        id: 'perfect_scores_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Perfect Harmony!',
+        description:
+            'You\'ve achieved $perfectScores perfect scores! Your understanding of each other is exceptional.',
+        category: 'communication',
+        score: 95.0,
+        recommendation:
+            'Try advanced quiz levels to challenge your knowledge even more.',
+        generatedAt: DateTime.now(),
+        isPositive: true,
+      ));
+    }
+
+    if (currentStreak >= 7) {
+      insights.add(RelationshipInsight(
+        id: 'streak_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Consistent Connection!',
+        description:
+            'You\'ve maintained a $currentStreak-day streak! Your dedication to growing together is inspiring.',
+        category: 'commitment',
+        score: 90.0,
+        recommendation:
+            'Keep up the great work! Consistency builds stronger relationships.',
         generatedAt: DateTime.now(),
         isPositive: true,
       ));
@@ -158,8 +203,12 @@ class CoupleGoalsRepository {
   }
 
   /// Check for new achievements
-  Future<List<Achievement>> _checkForNewAchievements(CoupleGoalsData data,
-      dynamic quizProgress, Map<String, dynamic> statistics) async {
+  Future<List<Achievement>> _checkForNewAchievements(
+      CoupleGoalsData data,
+      dynamic quizProgress,
+      Map<String, dynamic> statistics,
+      int perfectScores,
+      int currentStreak) async {
     final newAchievements = <Achievement>[];
     final existingAchievementIds = data.achievements.map((a) => a.id).toSet();
 
@@ -380,25 +429,185 @@ class CoupleGoalsRepository {
   /// Get couple statistics
   Future<CoupleStatistics> getCoupleStatistics(String coupleId) async {
     final data = await getCoupleGoalsData(coupleId);
+    final userId = 'user_123'; // TODO: Get from auth
+
+    // Get real quiz data
+    final perfectScores = await _quizRepository.getPerfectScoresCount(userId);
+    final currentStreak = await _quizRepository.getCurrentStreak(userId);
+    final longestStreak = await _quizRepository.getLongestStreak(userId);
+    final categoryScores = await _quizRepository.getCategoryScores(userId);
+    final firstQuizDate = await _quizRepository.getFirstQuizDate(userId);
 
     return CoupleStatistics(
       totalQuizzes: data.totalQuizzesCompleted,
-      perfectScores: 0, // TODO: Calculate from quiz data
-      currentStreak: 0, // TODO: Calculate streak
-      longestStreak: 0, // TODO: Calculate from history
+      perfectScores: perfectScores,
+      currentStreak: currentStreak,
+      longestStreak: longestStreak,
       averageScore: data.totalQuizzesCompleted > 0
           ? data.totalPoints / data.totalQuizzesCompleted
           : 0,
-      categoryScores: {}, // TODO: Get from quiz repository
-      firstQuizDate: DateTime.now()
-          .subtract(const Duration(days: 30)), // TODO: Get actual date
+      categoryScores: categoryScores,
+      firstQuizDate:
+          firstQuizDate ?? DateTime.now().subtract(const Duration(days: 30)),
       lastActiveDate: data.lastUpdated,
     );
   }
 
-  /// Sync with cloud (placeholder for future implementation)
+  /// Sync with cloud
   Future<void> syncWithCloud(String coupleId) async {
-    // TODO: Implement cloud sync
+    try {
+      developer.log(
+          '🔄 [CoupleGoalsRepository] Starting cloud sync for couple: $coupleId');
+
+      // Get local data
+      final localData = await getCoupleGoalsData(coupleId);
+
+      // Save to Firebase
+      await _firebaseService.saveToFirestore(
+        collection: 'couple_goals',
+        documentId: coupleId,
+        data: {
+          'coupleId': localData.coupleId,
+          'lovePercentage': localData.lovePercentage,
+          'totalQuizzesCompleted': localData.totalQuizzesCompleted,
+          'totalGamesCompleted': localData.totalGamesCompleted,
+          'totalPuzzlesSolved': localData.totalPuzzlesSolved,
+          'currentLevel': localData.currentLevel,
+          'totalPoints': localData.totalPoints,
+          'lastUpdated': localData.lastUpdated.toIso8601String(),
+          'insights': localData.insights.map((i) => i.toMap()).toList(),
+          'achievements': localData.achievements.map((a) => a.toMap()).toList(),
+          'activeChallenges':
+              localData.activeChallenges.map((c) => c.toMap()).toList(),
+          'completedChallenges':
+              localData.completedChallenges.map((c) => c.toMap()).toList(),
+        },
+      );
+
+      // Sync achievements separately
+      for (final achievement in localData.achievements) {
+        await _firebaseService.saveToFirestore(
+          collection: 'achievements',
+          documentId: achievement.id,
+          data: achievement.toMap(),
+        );
+      }
+
+      // Sync challenges separately
+      for (final challenge in localData.activeChallenges) {
+        await _firebaseService.saveToFirestore(
+          collection: 'challenges',
+          documentId: challenge.id,
+          data: challenge.toMap(),
+        );
+      }
+
+      for (final challenge in localData.completedChallenges) {
+        await _firebaseService.saveToFirestore(
+          collection: 'challenges',
+          documentId: challenge.id,
+          data: challenge.toMap(),
+        );
+      }
+
+      developer.log('✅ [CoupleGoalsRepository] Cloud sync completed successfully');
+    } catch (e) {
+      developer.log('❌ [CoupleGoalsRepository] Cloud sync failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Load data from cloud
+  Future<CoupleGoalsData?> loadFromCloud(String coupleId) async {
+    try {
+      developer.log(
+          '📥 [CoupleGoalsRepository] Loading data from cloud for couple: $coupleId');
+
+      final doc = await _firebaseService.getFromFirestore(
+        collection: 'couple_goals',
+        documentId: coupleId,
+      );
+
+      if (!doc.exists) {
+        developer.log(
+            '📥 [CoupleGoalsRepository] No cloud data found for couple: $coupleId');
+        return null;
+      }
+
+      final data = doc.data() as Map<String, dynamic>;
+
+      // Convert Firebase data to CoupleGoalsData
+      final coupleGoalsData = CoupleGoalsData(
+        coupleId: data['coupleId'] as String,
+        lovePercentage: (data['lovePercentage'] as num).toDouble(),
+        totalQuizzesCompleted: data['totalQuizzesCompleted'] as int,
+        totalGamesCompleted: data['totalGamesCompleted'] as int,
+        totalPuzzlesSolved: data['totalPuzzlesSolved'] as int,
+        insights: (data['insights'] as List<dynamic>)
+            .map((i) =>
+                RelationshipInsight.fromMap(Map<String, dynamic>.from(i)))
+            .toList(),
+        achievements: (data['achievements'] as List<dynamic>)
+            .map((a) => Achievement.fromMap(Map<String, dynamic>.from(a)))
+            .toList(),
+        activeChallenges: (data['activeChallenges'] as List<dynamic>)
+            .map((c) => MiniChallenge.fromMap(Map<String, dynamic>.from(c)))
+            .toList(),
+        completedChallenges: (data['completedChallenges'] as List<dynamic>)
+            .map((c) => MiniChallenge.fromMap(Map<String, dynamic>.from(c)))
+            .toList(),
+        lastUpdated: DateTime.parse(data['lastUpdated'] as String),
+        currentLevel: data['currentLevel'] as int,
+        totalPoints: data['totalPoints'] as int,
+      );
+
+      // Save to local storage
+      await _goalsBox.put(coupleId, coupleGoalsData);
+
+      developer.log('✅ [CoupleGoalsRepository] Data loaded from cloud successfully');
+      return coupleGoalsData;
+    } catch (e) {
+      developer.log('❌ [CoupleGoalsRepository] Failed to load from cloud: $e');
+      return null;
+    }
+  }
+
+  /// Sync achievements with cloud
+  Future<void> syncAchievementsWithCloud(String coupleId) async {
+    try {
+      final achievements = _achievementsBox.values.toList();
+
+      for (final achievement in achievements) {
+        await _firebaseService.saveToFirestore(
+          collection: 'achievements',
+          documentId: achievement.id,
+          data: achievement.toMap(),
+        );
+      }
+
+      developer.log('✅ [CoupleGoalsRepository] Achievements synced with cloud');
+    } catch (e) {
+      developer.log('❌ [CoupleGoalsRepository] Failed to sync achievements: $e');
+    }
+  }
+
+  /// Sync challenges with cloud
+  Future<void> syncChallengesWithCloud(String coupleId) async {
+    try {
+      final challenges = _challengesBox.values.toList();
+
+      for (final challenge in challenges) {
+        await _firebaseService.saveToFirestore(
+          collection: 'challenges',
+          documentId: challenge.id,
+          data: challenge.toMap(),
+        );
+      }
+
+      developer.log('✅ [CoupleGoalsRepository] Challenges synced with cloud');
+    } catch (e) {
+      developer.log('❌ [CoupleGoalsRepository] Failed to sync challenges: $e');
+    }
   }
 
   /// Dispose resources

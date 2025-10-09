@@ -28,6 +28,62 @@ class _JourneyPreviewScreenState extends ConsumerState<JourneyPreviewScreen>
   late AnimationController _roadAnimationController;
   late AnimationController _heartsController;
 
+  /// Build safe image widget with error handling for missing files
+  Widget _buildSafeImageWidget(String photoPath) {
+    return FutureBuilder<bool>(
+      future: File(photoPath).exists(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            color: AppTheme.primaryPink.withValues(alpha: 0.1),
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (snapshot.data == true) {
+          return Image.file(
+            File(photoPath),
+            height: 100.h,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildImageErrorWidget();
+            },
+          );
+        } else {
+          return _buildImageErrorWidget();
+        }
+      },
+    );
+  }
+
+  /// Build error widget for missing images
+  Widget _buildImageErrorWidget() {
+    return Container(
+      height: 100.h,
+      color: AppTheme.primaryPink.withValues(alpha: 0.1),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.image_not_supported,
+            size: 32,
+            color: AppTheme.primaryPink.withValues(alpha: 0.5),
+          ),
+          SizedBox(height: 4),
+          Text(
+            'Image not found',
+            style: BabyFont.bodyS.copyWith(
+              color: AppTheme.primaryPink.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   late Animation<double> _fadeAnimation;
   late Animation<double> _pinAnimation;
 
@@ -473,12 +529,7 @@ class _JourneyPreviewScreenState extends ConsumerState<JourneyPreviewScreen>
               SizedBox(height: 12.h),
               ClipRRect(
                 borderRadius: BorderRadius.circular(8.r),
-                child: Image.file(
-                  File(memory.photoPath!),
-                  height: 100.h,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
+                child: _buildSafeImageWidget(memory.photoPath!),
               ),
             ],
             SizedBox(height: 12.h),

@@ -8,21 +8,34 @@ class QuizRepository {
   factory QuizRepository() => _instance;
   QuizRepository._internal();
 
-  late Box<QuizCategoryModel> _categoriesBox;
-  late Box<UserQuizProgress> _progressBox;
-  late Box<QuizSession> _sessionsBox;
+  late Box _categoriesBox;
+  late Box _progressBox;
+  late Box _sessionsBox;
+  bool _isInitialized = false;
 
   final QuizDataSource _dataSource = QuizDataSource();
 
   /// Initialize Hive boxes
   Future<void> initialize() async {
-    _categoriesBox = await Hive.openBox<QuizCategoryModel>('quiz_categories');
-    _progressBox = await Hive.openBox<UserQuizProgress>('quiz_progress');
-    _sessionsBox = await Hive.openBox<QuizSession>('quiz_sessions');
+    if (_isInitialized) return;
+
+    // Use dynamic boxes to avoid type conflicts
+    _categoriesBox = await Hive.openBox('quiz_categories');
+    _progressBox = await Hive.openBox('quiz_progress');
+    _sessionsBox = await Hive.openBox('quiz_sessions');
 
     // Initialize with default data if empty
     if (_categoriesBox.isEmpty) {
       await _initializeDefaultData();
+    }
+
+    _isInitialized = true;
+  }
+
+  /// Ensure repository is initialized
+  Future<void> _ensureInitialized() async {
+    if (!_isInitialized) {
+      await initialize();
     }
   }
 
@@ -39,19 +52,21 @@ class QuizRepository {
     final categories = _categoriesBox.values.toList();
     if (categories.isEmpty) {
       await _initializeDefaultData();
-      return _categoriesBox.values.toList();
+      return _categoriesBox.values.cast<QuizCategoryModel>().toList();
     }
-    return categories;
+    return categories.cast<QuizCategoryModel>();
   }
 
   /// Get category by ID
   Future<QuizCategoryModel?> getCategoryById(String categoryId) async {
-    return _categoriesBox.get(categoryId);
+    return _categoriesBox.get(categoryId) as QuizCategoryModel?;
   }
 
   /// Get user progress
   Future<UserQuizProgress> getUserProgress(String userId) async {
-    var progress = _progressBox.get(userId);
+    await _ensureInitialized();
+
+    var progress = _progressBox.get(userId) as UserQuizProgress?;
     if (progress == null) {
       progress = UserQuizProgress(userId: userId);
       await _progressBox.put(userId, progress);
@@ -61,6 +76,7 @@ class QuizRepository {
 
   /// Update user progress
   Future<void> updateUserProgress(UserQuizProgress progress) async {
+    await _ensureInitialized();
     await _progressBox.put(progress.userId, progress);
   }
 
@@ -241,6 +257,119 @@ class QuizRepository {
           : 0.0,
       'lastPlayedAt': progress.lastPlayedAt,
     };
+  }
+
+  /// Get perfect scores count
+  Future<int> getPerfectScoresCount(String userId) async {
+    final progress = await getUserProgress(userId);
+    return progress.earnedBadges
+        .where((badge) => badge == 'perfect_score')
+        .length;
+  }
+
+  /// Get current streak (consecutive days with quiz completion)
+  Future<int> getCurrentStreak(String userId) async {
+    final progress = await getUserProgress(userId);
+    final sessions =
+        _sessionsBox.values.where((session) => session.isCompleted).toList();
+
+    if (sessions.isEmpty) return 0;
+
+    // Sort sessions by completion date
+    sessions.sort((a, b) => b.completedAt!.compareTo(a.completedAt!));
+
+    int streak = 0;
+    DateTime? lastDate;
+
+    for (final session in sessions) {
+      final sessionDate = session.completedAt!;
+      final today = DateTime.now();
+      final daysDiff = today.difference(sessionDate).inDays;
+
+      if (lastDate == null) {
+        // First session
+        if (daysDiff <= 1) {
+          streak = 1;
+          lastDate = sessionDate;
+        }
+      } else {
+        // Check if this session is consecutive
+        final daysBetween = lastDate.difference(sessionDate).inDays;
+        if (daysBetween == 1) {
+          streak++;
+          lastDate = sessionDate;
+        } else {
+          break;
+        }
+      }
+    }
+
+    return streak;
+  }
+
+  /// Get longest streak
+  Future<int> getLongestStreak(String userId) async {
+    final progress = await getUserProgress(userId);
+    final sessions =
+        _sessionsBox.values.where((session) => session.isCompleted).toList();
+
+    if (sessions.isEmpty) return 0;
+
+    // Sort sessions by completion date
+    sessions.sort((a, b) => a.completedAt!.compareTo(b.completedAt!));
+
+    int longestStreak = 0;
+    int currentStreak = 0;
+    DateTime? lastDate;
+
+    for (final session in sessions) {
+      final sessionDate = session.completedAt!;
+
+      if (lastDate == null) {
+        currentStreak = 1;
+        lastDate = sessionDate;
+      } else {
+        final daysBetween = sessionDate.difference(lastDate).inDays;
+        if (daysBetween == 1) {
+          currentStreak++;
+        } else {
+          longestStreak =
+              longestStreak > currentStreak ? longestStreak : currentStreak;
+          currentStreak = 1;
+        }
+        lastDate = sessionDate;
+      }
+    }
+
+    return longestStreak > currentStreak ? longestStreak : currentStreak;
+  }
+
+  /// Get category scores
+  Future<Map<String, int>> getCategoryScores(String userId) async {
+    final progress = await getUserProgress(userId);
+    return Map<String, int>.from(progress.categoryScores);
+  }
+
+  /// Get first quiz date
+  Future<DateTime?> getFirstQuizDate(String userId) async {
+    final sessions =
+        _sessionsBox.values.where((session) => session.isCompleted).toList();
+
+    if (sessions.isEmpty) return null;
+
+    sessions.sort((a, b) => a.completedAt!.compareTo(b.completedAt!));
+    return sessions.first.completedAt!;
+  }
+
+  /// Calculate puzzles solved from quiz progress
+  Future<int> calculatePuzzlesSolved(String userId) async {
+    final progress = await getUserProgress(userId);
+    // Count completed levels as "puzzles solved"
+    int puzzlesSolved = 0;
+    for (final categoryId in progress.categoryLevelsCompleted.keys) {
+      puzzlesSolved += progress.getCategoryLevelsCompleted(categoryId);
+    }
+    return puzzlesSolved;
   }
 
   /// Reset user progress (for testing or user request)

@@ -1,10 +1,11 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter/material.dart';
 import 'avatar_data.dart';
-import 'avatar_source.dart';
 import 'baby_result.dart';
-import 'generation_progress.dart';
 import 'user_profile.dart';
 import '../../features/quiz/domain/models/quiz_models.dart';
+import '../../features/engagement_features/data/models/memory_journey_model.dart';
+import '../../features/engagement_features/data/models/memory_model.dart';
 
 /// Centralized Hive adapter registration
 class HiveAdapters {
@@ -18,12 +19,6 @@ class HiveAdapters {
     }
     if (!Hive.isAdapterRegistered(2)) {
       Hive.registerAdapter(UserProfileAdapter());
-    }
-    if (!Hive.isAdapterRegistered(3)) {
-      Hive.registerAdapter(AvatarSourceAdapter());
-    }
-    if (!Hive.isAdapterRegistered(4)) {
-      Hive.registerAdapter(GenerationProgressAdapter());
     }
 
     // Register quiz model adapters
@@ -41,6 +36,26 @@ class HiveAdapters {
     }
     if (!Hive.isAdapterRegistered(14)) {
       Hive.registerAdapter(QuizSessionAdapter());
+    }
+
+    // Register memory journey adapters
+    if (!Hive.isAdapterRegistered(30)) {
+      Hive.registerAdapter(MemoryJourneyModelAdapter());
+    }
+    if (!Hive.isAdapterRegistered(31)) {
+      Hive.registerAdapter(MemoryJourneySettingsAdapter());
+    }
+    if (!Hive.isAdapterRegistered(32)) {
+      Hive.registerAdapter(MemoryJourneyExportSettingsAdapter());
+    }
+    if (!Hive.isAdapterRegistered(33)) {
+      Hive.registerAdapter(MemoryJourneyThemeAdapter());
+    }
+    if (!Hive.isAdapterRegistered(34)) {
+      Hive.registerAdapter(MemoryModelAdapter());
+    }
+    if (!Hive.isAdapterRegistered(35)) {
+      Hive.registerAdapter(MemoryMoodAdapter());
     }
 
     // Register enum adapters
@@ -560,91 +575,290 @@ class UserProfileAdapter extends TypeAdapter<UserProfile> {
   }
 }
 
-class AvatarSourceAdapter extends TypeAdapter<AvatarSource> {
+// Memory Journey Adapters
+class MemoryJourneyModelAdapter extends TypeAdapter<MemoryJourneyModel> {
   @override
-  final int typeId = 3;
+  final int typeId = 30;
 
   @override
-  AvatarSource read(BinaryReader reader) {
-    switch (reader.readByte()) {
-      case 0:
-        return AvatarSource.male;
-      case 1:
-        return AvatarSource.female;
-      case 2:
-        return AvatarSource.profile;
-      case 3:
-        return AvatarSource.uploaded;
-      case 4:
-        return AvatarSource.generated;
-      default:
-        return AvatarSource.profile;
-    }
-  }
-
-  @override
-  void write(BinaryWriter writer, AvatarSource obj) {
-    switch (obj) {
-      case AvatarSource.male:
-        writer.writeByte(0);
-        break;
-      case AvatarSource.female:
-        writer.writeByte(1);
-        break;
-      case AvatarSource.profile:
-        writer.writeByte(2);
-        break;
-      case AvatarSource.uploaded:
-        writer.writeByte(3);
-        break;
-      case AvatarSource.generated:
-        writer.writeByte(4);
-        break;
-    }
-  }
-}
-
-class GenerationProgressAdapter extends TypeAdapter<GenerationProgress> {
-  @override
-  final int typeId = 4;
-
-  @override
-  GenerationProgress read(BinaryReader reader) {
+  MemoryJourneyModel read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return GenerationProgress(
-      taskId: fields[0] as String,
-      progress: fields[1] as double,
-      status: fields[2] as String,
-      message: fields[3] as String?,
-      timestamp: fields[4] as DateTime,
-      isCompleted: fields[5] as bool? ?? false,
-      hasError: fields[6] as bool? ?? false,
-      errorMessage: fields[7] as String?,
+    return MemoryJourneyModel(
+      journeyId: fields[0] as String,
+      title: fields[1] as String,
+      subtitle: fields[2] as String,
+      theme: fields[3] as String,
+      createdAt: fields[4] as DateTime,
+      lastModified: fields[5] as DateTime,
+      memories: (fields[6] as List).cast<MemoryModel>(),
+      settings: fields[7] as MemoryJourneySettings,
+      exportSettings: fields[8] as MemoryJourneyExportSettings,
     );
   }
 
   @override
-  void write(BinaryWriter writer, GenerationProgress obj) {
+  void write(BinaryWriter writer, MemoryJourneyModel obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
-      ..write(obj.taskId)
+      ..write(obj.journeyId)
       ..writeByte(1)
-      ..write(obj.progress)
+      ..write(obj.title)
       ..writeByte(2)
-      ..write(obj.status)
+      ..write(obj.subtitle)
       ..writeByte(3)
-      ..write(obj.message)
+      ..write(obj.theme)
       ..writeByte(4)
-      ..write(obj.timestamp)
+      ..write(obj.createdAt)
       ..writeByte(5)
-      ..write(obj.isCompleted)
+      ..write(obj.lastModified)
       ..writeByte(6)
-      ..write(obj.hasError)
+      ..write(obj.memories)
       ..writeByte(7)
-      ..write(obj.errorMessage);
+      ..write(obj.settings)
+      ..writeByte(8)
+      ..write(obj.exportSettings);
+  }
+}
+
+class MemoryJourneySettingsAdapter extends TypeAdapter<MemoryJourneySettings> {
+  @override
+  final int typeId = 31;
+
+  @override
+  MemoryJourneySettings read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return MemoryJourneySettings(
+      animationSpeed: fields[0] as double,
+      showLabels: fields[1] as bool,
+      showDates: fields[2] as bool,
+      showEmotions: fields[3] as bool,
+      autoPlay: fields[4] as bool,
+      loopAnimation: fields[5] as bool,
+      backgroundMusic: fields[6] as String?,
+      particleEffects: fields[7] as bool,
+      depthOfField: fields[8] as bool,
+      theme: fields[9] as String,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, MemoryJourneySettings obj) {
+    writer
+      ..writeByte(10)
+      ..writeByte(0)
+      ..write(obj.animationSpeed)
+      ..writeByte(1)
+      ..write(obj.showLabels)
+      ..writeByte(2)
+      ..write(obj.showDates)
+      ..writeByte(3)
+      ..write(obj.showEmotions)
+      ..writeByte(4)
+      ..write(obj.autoPlay)
+      ..writeByte(5)
+      ..write(obj.loopAnimation)
+      ..writeByte(6)
+      ..write(obj.backgroundMusic)
+      ..writeByte(7)
+      ..write(obj.particleEffects)
+      ..writeByte(8)
+      ..write(obj.depthOfField)
+      ..writeByte(9)
+      ..write(obj.theme);
+  }
+}
+
+class MemoryJourneyExportSettingsAdapter
+    extends TypeAdapter<MemoryJourneyExportSettings> {
+  @override
+  final int typeId = 32;
+
+  @override
+  MemoryJourneyExportSettings read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return MemoryJourneyExportSettings(
+      videoQuality: fields[0] as String,
+      includeAudio: fields[1] as bool,
+      watermark: fields[2] as bool,
+      duration: fields[3] as String,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, MemoryJourneyExportSettings obj) {
+    writer
+      ..writeByte(4)
+      ..writeByte(0)
+      ..write(obj.videoQuality)
+      ..writeByte(1)
+      ..write(obj.includeAudio)
+      ..writeByte(2)
+      ..write(obj.watermark)
+      ..writeByte(3)
+      ..write(obj.duration);
+  }
+}
+
+class MemoryJourneyThemeAdapter extends TypeAdapter<MemoryJourneyTheme> {
+  @override
+  final int typeId = 33;
+
+  @override
+  MemoryJourneyTheme read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return MemoryJourneyTheme(
+      name: fields[0] as String,
+      displayName: fields[1] as String,
+      primaryColor: fields[2] as Color,
+      secondaryColor: fields[3] as Color,
+      accentColor: fields[4] as Color,
+      backgroundColor: fields[5] as Color,
+      textColor: fields[6] as Color,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, MemoryJourneyTheme obj) {
+    writer
+      ..writeByte(7)
+      ..writeByte(0)
+      ..write(obj.name)
+      ..writeByte(1)
+      ..write(obj.displayName)
+      ..writeByte(2)
+      ..write(obj.primaryColor)
+      ..writeByte(3)
+      ..write(obj.secondaryColor)
+      ..writeByte(4)
+      ..write(obj.accentColor)
+      ..writeByte(5)
+      ..write(obj.backgroundColor)
+      ..writeByte(6)
+      ..write(obj.textColor);
+  }
+}
+
+class MemoryModelAdapter extends TypeAdapter<MemoryModel> {
+  @override
+  final int typeId = 34;
+
+  @override
+  MemoryModel read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return MemoryModel(
+      id: fields[0] as String,
+      title: fields[1] as String,
+      description: fields[2] as String,
+      emoji: fields[3] as String,
+      photoPath: fields[4] as String?,
+      date: fields[5] as String,
+      voicePath: fields[6] as String?,
+      mood: fields[7] as String,
+      positionIndex: fields[8] as int,
+      timestamp: fields[9] as int,
+      isFavorite: fields[10] as bool,
+      location: fields[11] as String?,
+      tags: (fields[12] as List).cast<String>(),
+      roadPosition: fields[13] as Offset?,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, MemoryModel obj) {
+    writer
+      ..writeByte(14)
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.title)
+      ..writeByte(2)
+      ..write(obj.description)
+      ..writeByte(3)
+      ..write(obj.emoji)
+      ..writeByte(4)
+      ..write(obj.photoPath)
+      ..writeByte(5)
+      ..write(obj.date)
+      ..writeByte(6)
+      ..write(obj.voicePath)
+      ..writeByte(7)
+      ..write(obj.mood)
+      ..writeByte(8)
+      ..write(obj.positionIndex)
+      ..writeByte(9)
+      ..write(obj.timestamp)
+      ..writeByte(10)
+      ..write(obj.isFavorite)
+      ..writeByte(11)
+      ..write(obj.location)
+      ..writeByte(12)
+      ..write(obj.tags)
+      ..writeByte(13)
+      ..write(obj.roadPosition);
+  }
+}
+
+class MemoryMoodAdapter extends TypeAdapter<MemoryMood> {
+  @override
+  final int typeId = 35;
+
+  @override
+  MemoryMood read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return MemoryMood.joyful;
+      case 1:
+        return MemoryMood.sweet;
+      case 2:
+        return MemoryMood.emotional;
+      case 3:
+        return MemoryMood.romantic;
+      case 4:
+        return MemoryMood.fun;
+      case 5:
+        return MemoryMood.excited;
+      default:
+        return MemoryMood.joyful;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, MemoryMood obj) {
+    switch (obj) {
+      case MemoryMood.joyful:
+        writer.writeByte(0);
+        break;
+      case MemoryMood.sweet:
+        writer.writeByte(1);
+        break;
+      case MemoryMood.emotional:
+        writer.writeByte(2);
+        break;
+      case MemoryMood.romantic:
+        writer.writeByte(3);
+        break;
+      case MemoryMood.fun:
+        writer.writeByte(4);
+        break;
+      case MemoryMood.excited:
+        writer.writeByte(5);
+        break;
+    }
   }
 }

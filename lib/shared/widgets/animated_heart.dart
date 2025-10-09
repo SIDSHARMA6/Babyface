@@ -89,9 +89,9 @@ class _AnimatedHeartsState extends State<AnimatedHearts>
                   opacity: _opacityAnimations[index].value,
                   child: Icon(
                     Icons.favorite,
-                    color: index % 2 == 0 
-                        ? AppTheme.primaryPink.withOpacity(0.3)
-                        : AppTheme.primaryBlue.withOpacity(0.3),
+                    color: index % 2 == 0
+                        ? AppTheme.primaryPink.withValues(alpha: 0.3)
+                        : AppTheme.primaryBlue.withValues(alpha: 0.3),
                     size: 20.w + (5 * _animations[index].value),
                   ),
                 ),

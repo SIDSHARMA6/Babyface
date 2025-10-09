@@ -7,10 +7,10 @@ import '../../../../shared/widgets/toast_service.dart';
 import '../../../engagement_features/presentation/screens/real_baby_name_generator_screen.dart';
 import '../../../engagement_features/presentation/screens/real_growth_memory_timeline_screen.dart';
 import '../../../engagement_features/presentation/screens/real_couple_challenges_bucket_list_screen.dart';
-import '../../../engagement_features/presentation/screens/real_anniversary_event_tracker_screen.dart';
-import '../../../engagement_features/presentation/screens/simple_love_language_quiz_screen.dart';
-import '../../../engagement_features/presentation/screens/simple_future_planning_screen.dart';
-import '../../../engagement_features/presentation/screens/simple_couple_bucket_list_screen.dart';
+import '../../../anniversary_tracker/presentation/widgets/anniversary_tracker_widget.dart';
+import '../../../engagement_features/presentation/screens/love_language_quiz_screen.dart';
+import '../../../engagement_features/presentation/screens/future_planning_screen.dart';
+import '../../../engagement_features/presentation/screens/couple_bucket_list_screen.dart';
 import '../../../engagement_features/presentation/screens/memory_journal_screen.dart';
 
 /// Engagement features widget with grid of love and engagement features
@@ -95,8 +95,8 @@ class EngagementFeaturesWidget extends StatelessWidget {
         'title': 'Anniversary Tracker',
         'icon': Icons.calendar_today,
         'color': AppTheme.accentYellow,
-        'action': () => _navigateToFeature(context,
-            const AnniversaryEventTrackerScreen(), 'Anniversary Tracker'),
+        'action': () => _navigateToFeature(
+            context, const AnniversaryTrackerWidget(), 'Anniversary Tracker'),
         'emoji': '💍'
       },
       {

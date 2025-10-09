@@ -19,6 +19,61 @@ class MemoryDetailScreen extends ConsumerWidget {
     required this.memory,
   });
 
+  /// Build safe image widget with error handling for missing files
+  Widget _buildSafeImageWidget(String photoPath) {
+    return FutureBuilder<bool>(
+      future: File(photoPath).exists(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            color: AppTheme.primaryPink.withValues(alpha: 0.1),
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (snapshot.data == true) {
+          return Image.file(
+            File(photoPath),
+            width: double.infinity,
+            height: 200,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildImageErrorWidget();
+            },
+          );
+        } else {
+          return _buildImageErrorWidget();
+        }
+      },
+    );
+  }
+
+  /// Build error widget for missing images
+  Widget _buildImageErrorWidget() {
+    return Container(
+      color: AppTheme.primaryPink.withValues(alpha: 0.1),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.image_not_supported,
+            size: 48,
+            color: AppTheme.primaryPink.withValues(alpha: 0.5),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Image not found',
+            style: BabyFont.bodyS.copyWith(
+              color: AppTheme.primaryPink.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(memoryJournalProvider.notifier);
@@ -225,12 +280,7 @@ class MemoryDetailScreen extends ConsumerWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(context.responsiveRadius(12)),
-            child: Image.file(
-              File(memory.photoPath!),
-              width: double.infinity,
-              height: context.responsiveHeight(20),
-              fit: BoxFit.cover,
-            ),
+            child: _buildSafeImageWidget(memory.photoPath!),
           ),
         ),
       ],

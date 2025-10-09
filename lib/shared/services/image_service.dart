@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 
 import 'package:image_picker/image_picker.dart';
@@ -25,7 +26,7 @@ class ImageService {
       if (image == null) return null;
       return File(image.path);
     } catch (e) {
-      debugPrint('Error picking image: $e');
+      developer.log('Error picking image: $e');
       return null;
     }
   }
@@ -52,7 +53,7 @@ class ImageService {
 
       return File(result['outputPath']);
     } catch (e) {
-      debugPrint('Error compressing image: $e');
+      developer.log('Error compressing image: $e');
       return imageFile;
     }
   }
@@ -65,7 +66,7 @@ class ImageService {
       // Mock: always return true for demo
       return true;
     } catch (e) {
-      debugPrint('Error detecting face: $e');
+      developer.log('Error detecting face: $e');
       return false;
     }
   }
@@ -78,7 +79,7 @@ class ImageService {
         await file.delete();
       }
     } catch (e) {
-      debugPrint('Error deleting image: $e');
+      developer.log('Error deleting image: $e');
     }
   }
 }

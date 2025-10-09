@@ -5,6 +5,7 @@ import 'dart:math';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/baby_font.dart';
 import '../../../../shared/widgets/toast_service.dart';
+import '../../../../shared/services/baby_name_service.dart';
 
 class BabyNameGeneratorScreen extends StatefulWidget {
   const BabyNameGeneratorScreen({super.key});
@@ -25,9 +26,11 @@ class _BabyNameGeneratorScreenState extends State<BabyNameGeneratorScreen>
       TextEditingController();
   final TextEditingController _girlfriendNameController =
       TextEditingController();
+  final TextEditingController _finalNameController = TextEditingController();
 
   List<GeneratedName> _generatedNames = [];
   bool _isGenerating = false;
+  bool _showFinalNameInput = false;
   final Random _random = Random();
 
   @override
@@ -67,6 +70,7 @@ class _BabyNameGeneratorScreenState extends State<BabyNameGeneratorScreen>
     _generateController.dispose();
     _boyfriendNameController.dispose();
     _girlfriendNameController.dispose();
+    _finalNameController.dispose();
     super.dispose();
   }
 
@@ -99,9 +103,13 @@ class _BabyNameGeneratorScreenState extends State<BabyNameGeneratorScreen>
       setState(() {
         _generatedNames = [...boyNames, ...girlNames];
         _isGenerating = false;
+        _showFinalNameInput = true;
       });
 
       if (!mounted) return;
+
+      // Save generated names to service
+      _saveGeneratedNames();
 
       ToastService.showBabyMessage(context,
           'Generated ${_generatedNames.length} beautiful Indian names! 🇮🇳✨');
@@ -447,6 +455,67 @@ class _BabyNameGeneratorScreenState extends State<BabyNameGeneratorScreen>
     // TODO: Implement actual sharing functionality
   }
 
+  Future<void> _saveGeneratedNames() async {
+    try {
+      final boyfriendName = _boyfriendNameController.text.trim();
+      final girlfriendName = _girlfriendNameController.text.trim();
+
+      for (final name in _generatedNames) {
+        final generatedName = GeneratedBabyName(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: name.name,
+          meaning: name.meaning,
+          gender: name.gender,
+          loveScore: name.loveScore.toDouble(),
+          createdAt: DateTime.now(),
+          parent1Name: boyfriendName,
+          parent2Name: girlfriendName,
+        );
+        await BabyNameService.instance.saveGeneratedName(generatedName);
+      }
+    } catch (e) {
+      ToastService.showError(context, 'Failed to save generated names: $e');
+    }
+  }
+
+  Future<void> _saveFinalName() async {
+    final finalName = _finalNameController.text.trim();
+    if (finalName.isEmpty) {
+      ToastService.showWarning(context, 'Please enter a final name! 💕');
+      return;
+    }
+
+    try {
+      final boyfriendName = _boyfriendNameController.text.trim();
+      final girlfriendName = _girlfriendNameController.text.trim();
+
+      final finalBabyName = FinalBabyName(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: finalName,
+        meaning:
+            'Final chosen name from ${boyfriendName} and ${girlfriendName}',
+        gender: 'unknown', // User can specify later
+        createdAt: DateTime.now(),
+        parent1Name: boyfriendName,
+        parent2Name: girlfriendName,
+        notes: 'Final name chosen by user',
+      );
+
+      await BabyNameService.instance.saveFinalName(finalBabyName);
+
+      ToastService.showCelebration(
+          context, 'Final name "$finalName" saved! 💕✨');
+
+      // Clear the input
+      _finalNameController.clear();
+      setState(() {
+        _showFinalNameInput = false;
+      });
+    } catch (e) {
+      ToastService.showError(context, 'Failed to save final name: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -564,6 +633,111 @@ class _BabyNameGeneratorScreenState extends State<BabyNameGeneratorScreen>
                               ),
                       ),
                     ),
+
+                    // Final Name Input Section
+                    if (_showFinalNameInput) ...[
+                      SizedBox(height: 20.h),
+                      Container(
+                        padding: EdgeInsets.all(20.w),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20.r),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  AppTheme.accentYellow.withValues(alpha: 0.1),
+                              blurRadius: 15.r,
+                              offset: Offset(0, 5.h),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.star,
+                                  color: AppTheme.accentYellow,
+                                  size: 24.w,
+                                ),
+                                SizedBox(width: 8.w),
+                                Text(
+                                  'Choose Your Final Name',
+                                  style: BabyFont.headingM.copyWith(
+                                    fontSize: 18.sp,
+                                    color: AppTheme.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 16.h),
+                            TextField(
+                              controller: _finalNameController,
+                              decoration: InputDecoration(
+                                hintText: 'Enter your final chosen name...',
+                                hintStyle: BabyFont.bodyM.copyWith(
+                                  color: AppTheme.textSecondary,
+                                ),
+                                prefixIcon: Icon(Icons.edit,
+                                    color: AppTheme.accentYellow),
+                                filled: true,
+                                fillColor: AppTheme.accentYellow
+                                    .withValues(alpha: 0.1),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  borderSide: BorderSide(
+                                      color: AppTheme.accentYellow
+                                          .withValues(alpha: 0.3)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  borderSide: BorderSide(
+                                      color: AppTheme.accentYellow
+                                          .withValues(alpha: 0.3)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  borderSide: BorderSide(
+                                      color: AppTheme.accentYellow, width: 2.w),
+                                ),
+                              ),
+                              style: BabyFont.bodyM.copyWith(
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                            SizedBox(height: 16.h),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _saveFinalName,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.accentYellow,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(vertical: 16.h),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(25.r),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.save, size: 20.w),
+                                    SizedBox(width: 8.w),
+                                    Text(
+                                      'Save Final Name 💕',
+                                      style: BabyFont.bodyM.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

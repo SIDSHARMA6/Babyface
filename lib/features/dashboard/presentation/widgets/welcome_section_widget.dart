@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:future_baby/features/engagement_features/presentation/screens/real_baby_name_generator_screen.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/baby_font.dart';
 import '../../../../shared/providers/login_provider.dart';
 import '../../../../shared/widgets/romantic_carousel.dart';
 import '../../../../shared/models/carousel_item.dart';
+import '../../../../shared/services/app_data_service.dart';
+import '../../../engagement_features/presentation/screens/memory_journal_screen.dart';
+import '../../../anniversary_tracker/presentation/widgets/anniversary_tracker_widget.dart';
+import '../../../period_tracker/presentation/screens/period_tracker_screen.dart';
 
 /// Welcome section widget with user greeting and romantic carousel
 class WelcomeSectionWidget extends ConsumerWidget {
@@ -128,26 +133,173 @@ class WelcomeSectionWidget extends ConsumerWidget {
             ],
           ),
           SizedBox(height: 20.h),
-          _buildRomanticCarousel(user),
+          _buildRomanticCarousel(context, user),
         ],
       ),
     );
   }
 
-  Widget _buildRomanticCarousel(user) {
-    // Get user data for carousel
-    final babyCount = babiesGenerated;
-    final latestBabyName = user?.bondName;
-    final memoryCount = memoriesCreated;
-    final anniversaryDate = user?.partnerName != null ? "25 Dec 2025" : null;
-    final periodDate = "15 Oct 2025";
+  Widget _buildRomanticCarousel(BuildContext context, user) {
+    return _CarouselDataWidget(
+      user: user,
+      onBabyGeneratorTap: () => _navigateToBabyGenerator(context),
+      onMemoryJournalTap: () => _navigateToMemoryJournal(context),
+      onAnniversaryTrackerTap: () => _navigateToAnniversaryTracker(context),
+      onPeriodTrackerTap: () => _navigateToPeriodTracker(context),
+    );
+  }
+
+  /// Navigation methods for carousel taps
+  void _navigateToBabyGenerator(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const BabyNameGeneratorScreen(),
+      ),
+    );
+  }
+
+  void _navigateToMemoryJournal(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MemoryJournalScreen(),
+      ),
+    );
+  }
+
+  void _navigateToAnniversaryTracker(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AnniversaryTrackerWidget(),
+      ),
+    );
+  }
+
+  void _navigateToPeriodTracker(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PeriodTrackerScreen(),
+      ),
+    );
+  }
+}
+
+/// Optimized carousel data widget with proper state management
+class _CarouselDataWidget extends StatefulWidget {
+  final dynamic user;
+  final VoidCallback onBabyGeneratorTap;
+  final VoidCallback onMemoryJournalTap;
+  final VoidCallback onAnniversaryTrackerTap;
+  final VoidCallback onPeriodTrackerTap;
+
+  const _CarouselDataWidget({
+    required this.user,
+    required this.onBabyGeneratorTap,
+    required this.onMemoryJournalTap,
+    required this.onAnniversaryTrackerTap,
+    required this.onPeriodTrackerTap,
+  });
+
+  @override
+  State<_CarouselDataWidget> createState() => _CarouselDataWidgetState();
+}
+
+class _CarouselDataWidgetState extends State<_CarouselDataWidget> {
+  Map<String, dynamic>? _cachedData;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final data = await AppDataService.instance.getDashboardCarouselData();
+      if (mounted) {
+        setState(() {
+          _cachedData = data;
+          _isLoading = false;
+          _hasError = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return SizedBox(
+        height: 220.h,
+        child: Center(
+          child: CircularProgressIndicator(
+            color: AppTheme.primaryPink,
+          ),
+        ),
+      );
+    }
+
+    if (_hasError || _cachedData == null) {
+      return SizedBox(
+        height: 220.h,
+        child: Center(
+          child: Text(
+            'Unable to load data',
+            style: TextStyle(color: AppTheme.textSecondary),
+          ),
+        ),
+      );
+    }
+
+    final data = _cachedData!;
+    final nearestEvent = data['nearestEvent'];
+    final periodStats = data['periodStats'] ?? {};
+    final bondName = data['bondName'] ?? widget.user?.bondName;
+    final isPeriodSetUp = periodStats['isSetUp'] ?? false;
+    final babyGenerationCount = data['babyGenerationCount'] ?? 0;
+    final latestFinalName = data['latestFinalName'];
+    final memoryCount = data['memoryCount'] ?? 0;
+
+    // Format anniversary date
+    String? anniversaryDate;
+    if (nearestEvent != null) {
+      final eventDate = DateTime.parse(nearestEvent['date']);
+      anniversaryDate =
+          '${eventDate.day} ${_getMonthName(eventDate.month)} ${eventDate.year}';
+    }
+
+    // Format period date
+    String? periodDate;
+    if (isPeriodSetUp && periodStats['nextPeriod'] != null) {
+      final nextPeriod = DateTime.parse(periodStats['nextPeriod']);
+      periodDate =
+          '${nextPeriod.day} ${_getMonthName(nextPeriod.month)} ${nextPeriod.year}';
+    }
 
     final carouselItems = CarouselDataProvider.getCarouselItems(
-      babyCount: babyCount,
-      latestBabyName: latestBabyName,
+      babyCount: babyGenerationCount,
+      latestBabyName: latestFinalName ?? bondName,
       memoryCount: memoryCount,
       anniversaryDate: anniversaryDate,
       periodDate: periodDate,
+      periodStats: periodStats,
+      nearestEvent: nearestEvent,
+      onBabyGeneratorTap: widget.onBabyGeneratorTap,
+      onMemoryJournalTap: widget.onMemoryJournalTap,
+      onAnniversaryTrackerTap: widget.onAnniversaryTrackerTap,
+      onPeriodTrackerTap: widget.onPeriodTrackerTap,
     );
 
     return SizedBox(
@@ -157,5 +309,23 @@ class WelcomeSectionWidget extends ConsumerWidget {
         height: 220,
       ),
     );
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return months[month - 1];
   }
 }

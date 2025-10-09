@@ -6,6 +6,7 @@ import '../../../../core/theme/baby_font.dart';
 import '../../../../shared/widgets/animated_heart';
 import '../../../../shared/widgets/toast_service.dart';
 import '../../../../shared/models/baby_result.dart';
+import '../../../../shared/services/history_service.dart';
 
 /// Ultra-fast History Screen with zero ANR
 /// - Beautiful grid layout for baby generation history
@@ -90,28 +91,26 @@ class _HistoryScreenState extends State<HistoryScreen>
       _isLoading = true;
     });
 
-    // Simulate loading data
-    Future.delayed(const Duration(milliseconds: 500), () {
+    // Load real data from HistoryService
+    Future.delayed(const Duration(milliseconds: 500), () async {
       if (mounted) {
-        setState(() {
-          _babyResults = _generateMockData();
-          _isLoading = false;
-        });
-      }
-    });
-  }
+        try {
+          // Get real baby results from HistoryService
+          final results = await HistoryService.getAllResults();
 
-  List<BabyResult> _generateMockData() {
-    return List.generate(12, (index) {
-      return BabyResult(
-        id: 'baby_${index + 1}',
-        maleMatchPercentage: 60 + (index * 3),
-        femaleMatchPercentage: 70 + (index * 2),
-        createdAt: DateTime.now().subtract(Duration(days: index)),
-        imageUrl: 'assets/images/baby${(index % 3) + 1}.jpg',
-        isFavorite: index % 4 == 0,
-        tags: ['Cute', 'Adorable', 'Sweet'][index % 3],
-      );
+          setState(() {
+            _babyResults = results;
+            _isLoading = false;
+          });
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _babyResults = [];
+              _isLoading = false;
+            });
+          }
+        }
+      }
     });
   }
 

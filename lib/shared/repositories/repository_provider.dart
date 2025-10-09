@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/avatar_data.dart';
 import '../models/baby_result.dart';
@@ -12,9 +12,9 @@ class RepositoryManager {
   static Future<void> initialize() async {
     try {
       // Simple in-memory storage for now
-      debugPrint('Repository initialized with in-memory storage');
+      developer.log('Repository initialized with in-memory storage');
     } catch (e) {
-      debugPrint('Repository initialization error: $e');
+      developer.log('Repository initialization error: $e');
     }
   }
 

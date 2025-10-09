@@ -1,4 +1,6 @@
 import '../entities/analytics_event_entity.dart';
+import 'dart:developer' as developer;
+import '../../../../shared/services/analytics_service.dart';
 
 /// Analytics data class
 class AnalyticsData {
@@ -36,83 +38,70 @@ class AnalyticsData {
 /// Get analytics use case
 /// Follows master plan clean architecture
 class GetAnalyticsUsecase {
+  final AnalyticsService _analyticsService = AnalyticsService();
+
   /// Execute get analytics
   Future<AnalyticsData> execute() async {
-    // Simulate loading time
-    await Future.delayed(const Duration(milliseconds: 800));
+    try {
+      // Get real analytics data from AnalyticsService
+      final analyticsData = await _analyticsService.getAnalyticsData();
 
-    // Return sample analytics data for demo
-    return AnalyticsData(
-      totalUsers: 12543,
-      activeSessions: 892,
-      totalGenerations: 45678,
-      averageSessionDuration: const Duration(minutes: 8, seconds: 32),
-      dailyActiveUsers: 2341,
-      weeklyRetention: 67.5,
-      featureUsageCount: 123456,
-      shareRate: 23.8,
-      appLaunchTime: 1250,
-      memoryUsage: 85,
-      frameRate: 58.7,
-      crashRate: 0.12,
-      recentEvents: _generateSampleEvents(),
-    );
+      return AnalyticsData(
+        totalUsers: analyticsData['totalUsers'] ?? 0,
+        activeSessions: analyticsData['activeSessions'] ?? 0,
+        totalGenerations: analyticsData['totalGenerations'] ?? 0,
+        averageSessionDuration: Duration(
+          milliseconds: analyticsData['averageSessionDuration'] ?? 0,
+        ),
+        dailyActiveUsers: analyticsData['dailyActiveUsers'] ?? 0,
+        weeklyRetention: analyticsData['weeklyRetention'] ?? 0.0,
+        featureUsageCount: analyticsData['featureUsageCount'] ?? 0,
+        shareRate: analyticsData['shareRate'] ?? 0.0,
+        appLaunchTime: analyticsData['appLaunchTime'] ?? 0,
+        memoryUsage: analyticsData['memoryUsage'] ?? 0,
+        frameRate: analyticsData['frameRate'] ?? 0.0,
+        crashRate: analyticsData['crashRate'] ?? 0.0,
+        recentEvents: _convertToAnalyticsEvents(
+          analyticsData['recentEvents'] ?? [],
+        ),
+      );
+    } catch (e) {
+      developer.log('Error getting analytics: $e');
+      // Return default values if analytics service fails
+      return AnalyticsData(
+        totalUsers: 0,
+        activeSessions: 0,
+        totalGenerations: 0,
+        averageSessionDuration: Duration.zero,
+        dailyActiveUsers: 0,
+        weeklyRetention: 0.0,
+        featureUsageCount: 0,
+        shareRate: 0.0,
+        appLaunchTime: 0,
+        memoryUsage: 0,
+        frameRate: 0.0,
+        crashRate: 0.0,
+        recentEvents: [],
+      );
+    }
   }
 
-  /// Generate sample events for demo
-  List<AnalyticsEventEntity> _generateSampleEvents() {
-    final now = DateTime.now();
-    return [
-      AnalyticsEventEntity(
-        id: '1',
-        eventName: 'baby_generation_started',
-        parameters: {'user_id': 'user_123', 'generation_type': 'standard'},
-        userId: 'user_123',
-        timestamp: now.subtract(const Duration(minutes: 5)),
-        sessionId: 'session_456',
-        screenName: 'BabyGenerationScreen',
-        category: EventCategory.userAction,
-      ),
-      AnalyticsEventEntity(
-        id: '2',
-        eventName: 'screen_view',
-        parameters: {'screen_name': 'PremiumScreen'},
-        userId: 'user_456',
-        timestamp: now.subtract(const Duration(minutes: 12)),
-        sessionId: 'session_789',
-        screenName: 'PremiumScreen',
-        category: EventCategory.screenView,
-      ),
-      AnalyticsEventEntity(
-        id: '3',
-        eventName: 'performance_metric',
-        parameters: {'metric': 'memory_usage', 'value': 95, 'unit': 'MB'},
-        userId: 'user_789',
-        timestamp: now.subtract(const Duration(minutes: 18)),
-        sessionId: 'session_101',
-        screenName: 'DashboardScreen',
-        category: EventCategory.performance,
-      ),
-      AnalyticsEventEntity(
-        id: '4',
-        eventName: 'premium_subscription',
-        parameters: {'plan': 'yearly', 'price': 79.99},
-        userId: 'user_101',
-        timestamp: now.subtract(const Duration(minutes: 25)),
-        sessionId: 'session_202',
-        screenName: 'PremiumScreen',
-        category: EventCategory.business,
-      ),
-      AnalyticsEventEntity(
-        id: '5',
-        eventName: 'share_image',
-        parameters: {'platform': 'instagram', 'image_id': 'img_123'},
-        userId: 'user_202',
-        timestamp: now.subtract(const Duration(minutes: 32)),
-        sessionId: 'session_303',
-        screenName: 'HistoryScreen',
-        category: EventCategory.engagement,
-      ),
-    ];
+  /// Convert raw events to AnalyticsEventEntity
+  List<AnalyticsEventEntity> _convertToAnalyticsEvents(
+      List<dynamic> rawEvents) {
+    return rawEvents
+        .map((event) => AnalyticsEventEntity(
+              id: event['id'] ?? '',
+              eventName: event['eventName'] ?? '',
+              parameters: Map<String, dynamic>.from(event['parameters'] ?? {}),
+              userId: event['userId'] ?? '',
+              timestamp:
+                  DateTime.tryParse(event['timestamp'] ?? '') ?? DateTime.now(),
+              category: EventCategory.values.firstWhere(
+                (e) => e.name == event['category'],
+                orElse: () => EventCategory.userAction,
+              ),
+            ))
+        .toList();
   }
 }

@@ -1,4 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
@@ -27,7 +28,7 @@ class CloudFunctionsService {
 
       return result.data;
     } catch (e) {
-      print('Error updating user profile: $e');
+      developer.log('Error updating user profile: $e');
       rethrow;
     }
   }
@@ -45,7 +46,7 @@ class CloudFunctionsService {
 
       return result.data;
     } catch (e) {
-      print('Error getting user profile: $e');
+      developer.log('Error getting user profile: $e');
       rethrow;
     }
   }
@@ -74,7 +75,7 @@ class CloudFunctionsService {
         },
       });
     } catch (e) {
-      print('Error saving user login: $e');
+      developer.log('Error saving user login: $e');
       // Don't rethrow as this is not critical
     }
   }
@@ -97,7 +98,7 @@ class CloudFunctionsService {
         },
       });
     } catch (e) {
-      print('Error saving user activity: $e');
+      developer.log('Error saving user activity: $e');
       // Don't rethrow as this is not critical
     }
   }
@@ -115,7 +116,7 @@ class CloudFunctionsService {
 
       return result.data;
     } catch (e) {
-      print('Error deleting user account: $e');
+      developer.log('Error deleting user account: $e');
       rethrow;
     }
   }
@@ -140,7 +141,7 @@ class CloudFunctionsService {
 
       return result.data['caption'] ?? 'Check out this amazing app! ✨';
     } catch (e) {
-      print('Error generating sharing caption: $e');
+      developer.log('Error generating sharing caption: $e');
       return 'Check out this amazing app! ✨';
     }
   }
@@ -165,7 +166,7 @@ class CloudFunctionsService {
 
       return result.data;
     } catch (e) {
-      print('Error generating sharing link: $e');
+      developer.log('Error generating sharing link: $e');
       rethrow;
     }
   }
@@ -186,7 +187,7 @@ class CloudFunctionsService {
         'action': action,
       });
     } catch (e) {
-      print('Error tracking sharing click: $e');
+      developer.log('Error tracking sharing click: $e');
       // Don't rethrow as this is not critical
     }
   }

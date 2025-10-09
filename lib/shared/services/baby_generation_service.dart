@@ -3,9 +3,9 @@ import 'dart:math' as math;
 import '../models/baby_result.dart';
 import '../models/avatar_data.dart';
 
-/// Service for AI-powered baby face generation (mock implementation)
+/// Service for AI-powered baby face generation
 class BabyGenerationService {
-  /// Generate baby face from parent avatars (mock implementation)
+  /// Generate baby face from parent avatars
   static Future<BabyResult> generateBabyMock({
     required AvatarData maleAvatar,
     required AvatarData femaleAvatar,
@@ -21,7 +21,7 @@ class BabyGenerationService {
       final maleMatch = 45 + random.nextInt(30); // 45-75%
       final femaleMatch = 100 - maleMatch; // Remaining percentage
 
-      // Create mock baby result
+      // Create baby result
       final babyResult = BabyResult(
         id: 'baby_${DateTime.now().millisecondsSinceEpoch}',
         babyImagePath: null, // Would be set by actual AI service

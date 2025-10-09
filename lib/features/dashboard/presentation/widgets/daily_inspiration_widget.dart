@@ -23,15 +23,8 @@ class DailyInspirationWidget extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.primaryPink.withValues(alpha: 0.1),
-            AppTheme.primaryBlue.withValues(alpha: 0.1),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(18.r),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(
             color: AppTheme.primaryPink.withValues(alpha: 0.1),

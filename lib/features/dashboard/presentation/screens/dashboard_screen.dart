@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import '../widgets/baby_generation_card_widget.dart';
 import '../widgets/engagement_features_widget.dart';
 import '../widgets/premium_features_widget.dart';
 import '../widgets/daily_inspiration_widget.dart';
+import '../../../../shared/services/bond_profile_service.dart';
 import 'dart:io';
 
 /// Modular Dashboard Screen with clean architecture
@@ -31,11 +33,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   late AnimationController _heartController;
   late AnimationController _floatingController;
   late AnimationController _pulseController;
-  late AnimationController _scrollController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _heartAnimation;
   late Animation<double> _floatingAnimation;
-  late Animation<double> _scrollAnimation;
 
   // Dashboard data - will be loaded from providers
   final int _babiesGenerated = 0;
@@ -48,14 +48,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   File? _femalePhoto;
   bool _isGenerating = false;
 
-  // Scroll state
-  double _scrollOffset = 0.0;
-  bool _showBondName = false;
+  // Bond profile data
+  String? _bondName;
+  String? _bondImagePath;
+
+  // Refresh key for welcome section
+  int _welcomeRefreshKey = 0;
 
   @override
   void initState() {
     super.initState();
     _initAnimations();
+    _loadBondProfile();
 
     // Add smooth transition from login
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -80,6 +84,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     }
   }
 
+  /// Refresh welcome section data
+  void _refreshWelcomeSection() {
+    if (mounted) {
+      setState(() {
+        _welcomeRefreshKey++;
+      });
+    }
+  }
+
   void _initAnimations() {
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
@@ -98,11 +111,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-
-    _scrollController = AnimationController(
-      duration: const Duration(milliseconds: 300),
       vsync: this,
     );
 
@@ -130,18 +138,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       curve: Curves.easeInOut,
     ));
 
-    _scrollAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _scrollController,
-      curve: Curves.easeOutCubic,
-    ));
-
     _animationController.forward();
     _heartController.repeat(reverse: true);
     _floatingController.repeat(reverse: true);
     _pulseController.repeat(reverse: true);
+  }
+
+  /// Load bond profile data from SharedPreferences
+  Future<void> _loadBondProfile() async {
+    try {
+      final bondName = await BondProfileService.instance.getBondName();
+      final bondImagePath =
+          await BondProfileService.instance.getBondImagePath();
+
+      if (mounted) {
+        setState(() {
+          _bondName = bondName;
+          _bondImagePath = bondImagePath;
+        });
+      }
+    } catch (e) {
+      developer.log('Error loading bond profile: $e');
+    }
   }
 
   @override
@@ -150,7 +168,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     _heartController.dispose();
     _floatingController.dispose();
     _pulseController.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -188,104 +205,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             const Positioned.fill(
               child: AnimatedHearts(),
             ),
-            // Floating bond name - Edge-to-edge immersive
-            if (_showBondName)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: AnimatedBuilder(
-                  animation: _scrollAnimation,
-                  builder: (context, child) {
-                    return Transform.translate(
-                      offset: Offset(0, -50 * (1 - _scrollAnimation.value)),
-                      child: Opacity(
-                        opacity: _scrollAnimation.value,
-                        child: Container(
-                          padding: EdgeInsets.fromLTRB(
-                              24.w,
-                              MediaQuery.of(context).padding.top + 5.h,
-                              24.w,
-                              16.h),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppTheme.primaryPink,
-                                AppTheme.primaryBlue,
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color:
-                                    AppTheme.primaryPink.withValues(alpha: 0.3),
-                                blurRadius: 10,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _buildProfileImageOrHeart(),
-                              SizedBox(width: 48.w),
-                              Text(
-                                _getBondName(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
             // Main content - Immersive (no SafeArea)
             AnimatedBuilder(
               animation: _animationController,
               builder: (context, child) {
                 return FadeTransition(
                   opacity: _fadeAnimation,
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: (ScrollNotification notification) {
-                      if (notification is ScrollUpdateNotification) {
-                        setState(() {
-                          _scrollOffset = notification.metrics.pixels;
-                          final shouldShowBondName = _scrollOffset > 100;
-                          if (shouldShowBondName != _showBondName) {
-                            _showBondName = shouldShowBondName;
-                            if (_showBondName) {
-                              _scrollController.forward();
-                            } else {
-                              _scrollController.reverse();
-                            }
-                          }
-                        });
-                      }
-                      return false;
-                    },
-                    child: CustomScrollView(
-                      physics: const BouncingScrollPhysics(
-                        parent: AlwaysScrollableScrollPhysics(),
-                      ),
-                      slivers: [
-                        _buildAppBar(),
-                        _buildWelcomeSection(),
-                        _buildLoveStreakCard(),
-                        _buildBabyGenerationCard(),
-                        _buildEngagementFeatures(),
-                        _buildPremiumFeatures(),
-                        _buildDailyInspiration(),
-                        SliverToBoxAdapter(child: SizedBox(height: 20.h)),
-                      ],
+                  child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
                     ),
+                    slivers: [
+                      _buildAppBar(),
+                      _buildWelcomeSection(),
+                      _buildLoveStreakCard(),
+                      _buildBabyGenerationCard(),
+                      _buildEngagementFeatures(),
+                      _buildPremiumFeatures(),
+                      _buildDailyInspiration(),
+                      SliverToBoxAdapter(child: SizedBox(height: 20.h)),
+                    ],
                   ),
                 );
               },
@@ -297,18 +236,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   Widget _buildAppBar() {
-    final loginState = ref.watch(loginProvider);
-    final user = loginState.user;
-
+    // Use bond profile data for greeting
     String appBarGreeting = 'Welcome Back! 👋';
     String appBarSubGreeting = 'Ready to create magic together? ✨💕';
-    if (user != null) {
-      if (user.bondName != null && user.bondName!.isNotEmpty) {
-        appBarGreeting = 'Hello, ${user.bondName}! 💕';
-        appBarSubGreeting = 'Your love story awaits ✨';
-      } else if (user.partnerName != null && user.partnerName!.isNotEmpty) {
-        appBarGreeting = 'Hello, ${user.partnerName}! 💕';
-        appBarSubGreeting = 'Ready to create magic together? ✨💕';
+
+    if (_bondName != null && _bondName!.isNotEmpty) {
+      appBarGreeting = 'Hello, $_bondName! 💕';
+      appBarSubGreeting = 'Your love story awaits ✨';
+    } else {
+      // Fallback to user data if no bond name
+      final loginState = ref.watch(loginProvider);
+      final user = loginState.user;
+
+      if (user != null) {
+        if (user.bondName != null && user.bondName!.isNotEmpty) {
+          appBarGreeting = 'Hello, ${user.bondName}! 💕';
+          appBarSubGreeting = 'Your love story awaits ✨';
+        } else if (user.partnerName != null && user.partnerName!.isNotEmpty) {
+          appBarGreeting = 'Hello, ${user.partnerName}! 💕';
+          appBarSubGreeting = 'Ready to create magic together? ✨💕';
+        }
       }
     }
 
@@ -356,6 +303,43 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               ),
               Row(
                 children: [
+                  // Bond Image
+                  if (_bondImagePath != null)
+                    Container(
+                      width: 40.w,
+                      height: 40.w,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2.w,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: Image.file(
+                          File(_bondImagePath!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              child: Icon(
+                                Icons.favorite,
+                                color: Colors.white,
+                                size: 20.w,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  SizedBox(width: 8.w),
                   Container(
                     padding: EdgeInsets.all(10.w),
                     decoration: BoxDecoration(
@@ -395,6 +379,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       child: Padding(
         padding: EdgeInsets.all(20.w),
         child: WelcomeSectionWidget(
+          key: ValueKey(_welcomeRefreshKey),
           babiesGenerated: _babiesGenerated,
           memoriesCreated: _memoriesCreated,
           lovePercentage: _lovePercentage,
@@ -458,66 +443,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         child: const DailyInspirationWidget(),
       ),
     );
-  }
-
-  String _getBondName() {
-    final loginState = ref.read(loginProvider);
-    final user = loginState.user;
-
-    if (user != null && user.bondName != null && user.bondName!.isNotEmpty) {
-      return user.bondName!;
-    } else if (user != null &&
-        user.partnerName != null &&
-        user.partnerName!.isNotEmpty) {
-      return 'Hello, ${user.partnerName}! 💕';
-    } else {
-      return 'Hello, Love! 💕';
-    }
-  }
-
-  Widget _buildProfileImageOrHeart() {
-    final loginState = ref.read(loginProvider);
-    final user = loginState.user;
-
-    if (user?.photoUrl != null && user!.photoUrl!.isNotEmpty) {
-      return Container(
-        width: 28.w,
-        height: 28.w,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white,
-            width: 2.w,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: ClipOval(
-          child: Image.network(
-            user.photoUrl!,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return Icon(
-                Icons.favorite,
-                color: Colors.white,
-                size: 16.w,
-              );
-            },
-          ),
-        ),
-      );
-    } else {
-      return Icon(
-        Icons.favorite,
-        color: Colors.white,
-        size: 20.w,
-      );
-    }
   }
 
   void _selectPhoto(bool isMale) async {

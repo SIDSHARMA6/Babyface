@@ -20,14 +20,7 @@ class LoveStreakCardWidget extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.w),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.primaryPink.withValues(alpha: 0.1),
-            AppTheme.primaryBlue.withValues(alpha: 0.1),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(

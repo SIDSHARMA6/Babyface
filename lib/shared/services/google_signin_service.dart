@@ -1,7 +1,8 @@
 import 'package:google_sign_in/google_sign_in.dart';
+import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart' hide User;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/user.dart' as AppUser;
+import '../models/user.dart' as app_user;
 
 /// Clean Google Sign-In service
 class GoogleSignInService {
@@ -16,9 +17,9 @@ class GoogleSignInService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   /// Sign in with Google
-  Future<AppUser.User?> signInWithGoogle() async {
+  Future<app_user.User?> signInWithGoogle() async {
     try {
-      print('🔐 [GoogleSignIn] Starting Google Sign-In...');
+      developer.log('🔐 [GoogleSignIn] Starting Google Sign-In...');
 
       // Sign out any existing user
       await _googleSignIn.signOut();
@@ -27,11 +28,11 @@ class GoogleSignInService {
       // Trigger Google Sign-In
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
-        print('❌ [GoogleSignIn] User cancelled sign-in');
+        developer.log('❌ [GoogleSignIn] User cancelled sign-in');
         return null;
       }
 
-      print('✅ [GoogleSignIn] Google user obtained: ${googleUser.email}');
+      developer.log('✅ [GoogleSignIn] Google user obtained: ${googleUser.email}');
 
       // Get authentication details
       final GoogleSignInAuthentication googleAuth =
@@ -47,14 +48,14 @@ class GoogleSignInService {
       UserCredential? userCredential;
       try {
         userCredential = await _auth.signInWithCredential(credential);
-        print(
+        developer.log(
             '✅ [GoogleSignIn] Firebase sign-in successful: ${userCredential.user?.uid}');
       } catch (e) {
-        print('❌ [GoogleSignIn] Firebase sign-in failed: $e');
+        developer.log('❌ [GoogleSignIn] Firebase sign-in failed: $e');
 
         // Handle PigeonUserDetails type cast error
         if (e.toString().contains('PigeonUserDetails')) {
-          print(
+          developer.log(
               '🔐 [GoogleSignIn] Handling PigeonUserDetails type cast error...');
 
           // Wait a bit and try to get the current user
@@ -62,13 +63,13 @@ class GoogleSignInService {
           final currentUser = _auth.currentUser;
 
           if (currentUser != null) {
-            print(
+            developer.log(
                 '✅ [GoogleSignIn] Got current user after error: ${currentUser.uid}');
             // Use the current user directly
             final firebaseUser = currentUser;
 
             // Create User object
-            final user = AppUser.User(
+            final user = app_user.User(
               id: firebaseUser.uid,
               email: firebaseUser.email ?? '',
               displayName: firebaseUser.displayName,
@@ -82,10 +83,10 @@ class GoogleSignInService {
             // Save to SharedPreferences
             await _saveUserToPrefs(user);
 
-            print('✅ [GoogleSignIn] User saved to SharedPreferences');
+            developer.log('✅ [GoogleSignIn] User saved to SharedPreferences');
             return user;
           } else {
-            print('❌ [GoogleSignIn] No current user found after error');
+            developer.log('❌ [GoogleSignIn] No current user found after error');
             return null;
           }
         } else {
@@ -97,7 +98,7 @@ class GoogleSignInService {
       final firebaseUser = userCredential.user!;
 
       // Create User object
-      final user = AppUser.User(
+      final user = app_user.User(
         id: firebaseUser.uid,
         email: firebaseUser.email ?? '',
         displayName: firebaseUser.displayName,
@@ -111,10 +112,10 @@ class GoogleSignInService {
       // Save to SharedPreferences
       await _saveUserToPrefs(user);
 
-      print('✅ [GoogleSignIn] User saved to SharedPreferences');
+      developer.log('✅ [GoogleSignIn] User saved to SharedPreferences');
       return user;
     } catch (e) {
-      print('❌ [GoogleSignIn] Error: $e');
+      developer.log('❌ [GoogleSignIn] Error: $e');
       return null;
     }
   }
@@ -125,25 +126,26 @@ class GoogleSignInService {
       await _googleSignIn.signOut();
       await _auth.signOut();
       await _clearUserFromPrefs();
-      print('✅ [GoogleSignIn] Sign out successful');
+      developer.log('✅ [GoogleSignIn] Sign out successful');
     } catch (e) {
-      print('❌ [GoogleSignIn] Sign out error: $e');
+      developer.log('❌ [GoogleSignIn] Sign out error: $e');
     }
   }
 
   /// Get current user from SharedPreferences
-  Future<AppUser.User?> getCurrentUser() async {
+  Future<app_user.User?> getCurrentUser() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userData = prefs.getString('current_user');
-      
-      print('🔐 [GoogleSignIn] getCurrentUser - userData: ${userData != null ? "Found" : "Not found"}');
+
+      developer.log(
+          '🔐 [GoogleSignIn] getCurrentUser - userData: ${userData != null ? "Found" : "Not found"}');
 
       if (userData != null) {
-        print('🔐 [GoogleSignIn] Raw userData: $userData');
+        developer.log('🔐 [GoogleSignIn] Raw userData: $userData');
         final userMap =
             Map<String, dynamic>.from(Uri.splitQueryString(userData));
-        print('🔐 [GoogleSignIn] Parsed userMap: $userMap');
+        developer.log('🔐 [GoogleSignIn] Parsed userMap: $userMap');
 
         // Convert string values to proper types
         final convertedMap = <String, dynamic>{
@@ -160,11 +162,11 @@ class GoogleSignInService {
           'createdAt': userMap['createdAt'] ?? DateTime.now().toIso8601String(),
         };
 
-        return AppUser.User.fromMap(convertedMap);
+        return app_user.User.fromMap(convertedMap);
       }
       return null;
     } catch (e) {
-      print('❌ [GoogleSignIn] Error getting current user: $e');
+      developer.log('❌ [GoogleSignIn] Error getting current user: $e');
       return null;
     }
   }
@@ -176,25 +178,25 @@ class GoogleSignInService {
   }
 
   /// Save user to SharedPreferences
-  Future<void> _saveUserToPrefs(AppUser.User user) async {
+  Future<void> _saveUserToPrefs(app_user.User user) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userMap = user.toMap();
-      print('🔐 [GoogleSignIn] Saving user map: $userMap');
-      
+      developer.log('🔐 [GoogleSignIn] Saving user map: $userMap');
+
       final userData = Uri(
           queryParameters: userMap.map(
-                (key, value) => MapEntry(key, value?.toString() ?? ''),
-              )).query;
-      
-      print('🔐 [GoogleSignIn] Saving userData: $userData');
+        (key, value) => MapEntry(key, value?.toString() ?? ''),
+      )).query;
+
+      developer.log('🔐 [GoogleSignIn] Saving userData: $userData');
 
       await prefs.setString('current_user', userData);
       await prefs.setBool('is_logged_in', true);
-      
-      print('✅ [GoogleSignIn] User saved successfully');
+
+      developer.log('✅ [GoogleSignIn] User saved successfully');
     } catch (e) {
-      print('❌ [GoogleSignIn] Error saving user: $e');
+      developer.log('❌ [GoogleSignIn] Error saving user: $e');
     }
   }
 
@@ -205,12 +207,12 @@ class GoogleSignInService {
       await prefs.remove('current_user');
       await prefs.setBool('is_logged_in', false);
     } catch (e) {
-      print('❌ [GoogleSignIn] Error clearing user: $e');
+      developer.log('❌ [GoogleSignIn] Error clearing user: $e');
     }
   }
 
   /// Update user data
-  Future<void> updateUser(AppUser.User user) async {
+  Future<void> updateUser(app_user.User user) async {
     await _saveUserToPrefs(user);
   }
 }

@@ -1,4 +1,5 @@
 import 'package:hive/hive.dart';
+import 'dart:developer' as developer;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
@@ -33,16 +34,16 @@ class HiveService {
     if (_isInitialized) return;
 
     try {
-      print('🔐 [HiveService] Starting Hive initialization...');
+      developer.log('🔐 [HiveService] Starting Hive initialization...');
 
       // Get application documents directory
       final directory = await getApplicationDocumentsDirectory();
-      print('🔐 [HiveService] Documents directory: ${directory.path}');
+      developer.log('🔐 [HiveService] Documents directory: ${directory.path}');
       Hive.init(directory.path);
 
       // Register adapters
       _registerAdapters();
-      print('🔐 [HiveService] Adapters registered');
+      developer.log('🔐 [HiveService] Adapters registered');
 
       // Open boxes with compression for better performance
       await _openBoxes();
@@ -51,9 +52,10 @@ class HiveService {
       await _preloadCache();
 
       _isInitialized = true;
-      print('✅ [HiveService] Hive initialization completed successfully');
+      developer
+          .log('✅ [HiveService] Hive initialization completed successfully');
     } catch (e) {
-      print('❌ [HiveService] Failed to initialize Hive: $e');
+      developer.log('❌ [HiveService] Failed to initialize Hive: $e');
       throw Exception('Failed to initialize Hive: $e');
     }
   }
@@ -71,27 +73,78 @@ class HiveService {
     final boxNames = [
       'user_box', // For login user data
       'memory_box', // For memory journal data
+      'memory_journey_box', // For memory journey visualization data
       'baby_results',
       'user_profiles',
       'quiz_results',
+      'quiz_categories', // For quiz categories
+      'quiz_progress', // For user quiz progress
+      'quiz_sessions', // For quiz sessions
       'memory_journal',
       'couple_challenges',
-      'premium_subscriptions',
       'analytics_events',
+      'profile_sections', // For dynamic profile sections
+      'navigation_state', // For navigation state persistence
       'app_settings',
-      'navigation_state',
       'dashboard_state',
+      'anniversary_box', // For anniversary tracker events
+      'period_box', // For period tracker cycle data
+      'achievements_box', // For achievements data
+      'premium_subscriptions', // For premium subscription data
+      'analytics_box', // For analytics data
+      'bucket_list_box', // For bucket list items
+      'avatar_box', // For avatar data
+      'baby_results_box', // For baby generation results
+      'profile_sections_box', // For dynamic profile sections
+      'mood_tracking_box', // For mood tracking entries
+      'love_notes_box', // For love notes and shared quotes
+      'couple_gallery_box', // For couple photos and collages
+      'bond_level_box', // For bond level and XP system
+      'dynamic_themes_box', // For dynamic theme configurations
+      'favorite_moments_box', // For favorite moments carousel
+      'zodiac_compatibility_box', // For zodiac compatibility data
+      'ai_mood_assistant_box', // For AI mood assistant and weekly recaps
+      'love_reactions_box', // For gesture-based love reactions
+      'shared_journal_box', // For mini shared journal real-time writing
+      'couple_notifications_box', // For couple-linked notifications system
+      'engagement_features_box', // For engagement features and suggestions
     ];
 
     for (final boxName in boxNames) {
       try {
-        print('🔐 [HiveService] Opening box: $boxName');
+        developer.log('🔐 [HiveService] Opening box: $boxName');
         final box = await Hive.openBox(boxName);
         _boxes[boxName] = box;
-        print('✅ [HiveService] Box opened successfully: $boxName');
+        developer.log('✅ [HiveService] Box opened successfully: $boxName');
+
+        // Verify box is actually open
+        if (box.isOpen) {
+          developer.log('✅ [HiveService] Box $boxName is confirmed open');
+        } else {
+          developer.log('❌ [HiveService] Box $boxName failed to open properly');
+        }
       } catch (e) {
-        print('❌ [HiveService] Failed to open box $boxName: $e');
+        developer.log('❌ [HiveService] Failed to open box $boxName: $e');
+        // Try to create the box manually
+        try {
+          developer.log(
+              '🔐 [HiveService] Attempting to create box manually: $boxName');
+          final box = await Hive.openBox(boxName);
+          _boxes[boxName] = box;
+          developer.log('✅ [HiveService] Box created manually: $boxName');
+        } catch (e2) {
+          developer.log(
+              '❌ [HiveService] Failed to create box manually $boxName: $e2');
+        }
       }
+    }
+
+    // Final verification
+    developer.log('🔐 [HiveService] Final box status:');
+    for (final boxName in boxNames) {
+      final isOpen =
+          _boxes.containsKey(boxName) && _boxes[boxName]?.isOpen == true;
+      developer.log('🔐 [HiveService] $boxName: ${isOpen ? 'OPEN' : 'CLOSED'}');
     }
   }
 
@@ -110,10 +163,10 @@ class HiveService {
 
   /// Ultra-fast store with memory cache
   Future<void> store(String boxName, String key, dynamic value) async {
-    print('🔐 [HiveService] Storing data - Box: $boxName, Key: $key');
+    developer.log('🔐 [HiveService] Storing data - Box: $boxName, Key: $key');
     final box = _boxes[boxName];
     if (box == null) {
-      print('❌ [HiveService] Box $boxName not found');
+      developer.log('❌ [HiveService] Box $boxName not found');
       throw Exception('Box $boxName not found');
     }
 
@@ -126,12 +179,13 @@ class HiveService {
 
     // Write to disk asynchronously
     await box.put(key, value);
-    print('✅ [HiveService] Data stored successfully to box: $boxName');
+    developer.log('✅ [HiveService] Data stored successfully to box: $boxName');
   }
 
   /// Ultra-fast retrieve with memory cache
   dynamic retrieve(String boxName, String key) {
-    print('🔐 [HiveService] Retrieving data - Box: $boxName, Key: $key');
+    developer
+        .log('🔐 [HiveService] Retrieving data - Box: $boxName, Key: $key');
 
     // Check memory cache first
     if (_memoryCache.containsKey(boxName) &&
@@ -139,7 +193,7 @@ class HiveService {
       final cacheTime = _cacheTimestamps[boxName];
       if (cacheTime != null &&
           DateTime.now().difference(cacheTime) < _cacheExpiry) {
-        print('✅ [HiveService] Data found in cache');
+        developer.log('✅ [HiveService] Data found in cache');
         return _memoryCache[boxName]![key];
       }
     }
@@ -147,12 +201,12 @@ class HiveService {
     // Fallback to disk
     final box = _boxes[boxName];
     if (box == null) {
-      print('❌ [HiveService] Box $boxName not found');
+      developer.log('❌ [HiveService] Box $boxName not found');
       throw Exception('Box $boxName not found');
     }
 
     final value = box.get(key);
-    print(
+    developer.log(
         '🔐 [HiveService] Data from disk: ${value != null ? 'Found' : 'Not found'}');
 
     // Update cache
@@ -194,13 +248,40 @@ class HiveService {
     return result;
   }
 
+  /// Check if a box is open
+  bool isBoxOpen(String boxName) {
+    return _boxes.containsKey(boxName) && _boxes[boxName] != null;
+  }
+
+  /// Ensure a box is open, create if needed
+  Future<bool> ensureBoxOpen(String boxName) async {
+    if (isBoxOpen(boxName)) {
+      return true;
+    }
+
+    try {
+      developer.log('🔐 [HiveService] Ensuring box is open: $boxName');
+      final box = await Hive.openBox(boxName);
+      _boxes[boxName] = box;
+      developer.log('✅ [HiveService] Box ensured open: $boxName');
+      return true;
+    } catch (e) {
+      developer
+          .log('❌ [HiveService] Failed to ensure box is open $boxName: $e');
+      return false;
+    }
+  }
+
   /// Get all data from box (cached)
   Map<String, dynamic> getAll(String boxName) {
+    developer.log('🔍 [HiveService] Getting all data from box: $boxName');
+
     // Check memory cache first
     if (_memoryCache.containsKey(boxName)) {
       final cacheTime = _cacheTimestamps[boxName];
       if (cacheTime != null &&
           DateTime.now().difference(cacheTime) < _cacheExpiry) {
+        developer.log('🔍 [HiveService] Using cached data for $boxName');
         return Map<String, dynamic>.from(_memoryCache[boxName]!);
       }
     }
@@ -208,16 +289,28 @@ class HiveService {
     // Fallback to disk
     final box = _boxes[boxName];
     if (box == null) {
-      throw Exception('Box $boxName not found');
+      developer.log(
+          '❌ [HiveService] Box $boxName not found. Available boxes: ${_boxes.keys.toList()}');
+      // Return empty map instead of throwing to prevent app freeze
+      return <String, dynamic>{};
     }
 
-    final data = Map<String, dynamic>.from(box.toMap());
+    try {
+      developer.log('🔍 [HiveService] Reading from disk for box: $boxName');
+      final data = Map<String, dynamic>.from(box.toMap());
+      developer.log(
+          '🔍 [HiveService] Retrieved ${data.length} entries from box $boxName');
 
-    // Update cache
-    _memoryCache[boxName] = data;
-    _cacheTimestamps[boxName] = DateTime.now();
+      // Update cache
+      _memoryCache[boxName] = data;
+      _cacheTimestamps[boxName] = DateTime.now();
 
-    return data;
+      return data;
+    } catch (e) {
+      developer.log('❌ [HiveService] Error reading from disk: $e');
+      // Return empty map instead of throwing to prevent app freeze
+      return <String, dynamic>{};
+    }
   }
 
   /// Delete data with cache invalidation

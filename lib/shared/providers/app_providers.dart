@@ -502,9 +502,9 @@ class AnalyticsNotifier extends StateNotifier<AnalyticsState> {
       state = state.copyWith(events: updatedEvents);
 
       // Send to analytics service
-      await _analyticsService.trackCustomEvent(
-        eventName: eventName,
-        parameters: parameters,
+      await _analyticsService.trackEvent(
+        eventName,
+        parameters,
       );
     } catch (e) {
       state = state.copyWith(error: e.toString());

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -128,17 +129,17 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   Future<void> _complete() async {
     try {
-      print('🔐 [OnboardingScreen] Completing onboarding...');
+      developer.log('🔐 [OnboardingScreen] Completing onboarding...');
       
       // Save onboarding completion status
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('has_seen_onboarding', true);
       
-      print('🔐 [OnboardingScreen] Onboarding completion saved to SharedPreferences');
+      developer.log('🔐 [OnboardingScreen] Onboarding completion saved to SharedPreferences');
 
       // Navigate to login screen after onboarding
       if (mounted) {
-        print('🔐 [OnboardingScreen] Navigating to LoginScreen...');
+        developer.log('🔐 [OnboardingScreen] Navigating to LoginScreen...');
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(

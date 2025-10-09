@@ -1,5 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'dart:developer' as developer;
 import '../../shared/services/hive_service.dart';
+import '../../shared/services/performance_service.dart';
 
 /// Navigation state class
 class NavigationState {
@@ -48,7 +51,8 @@ class NavigationNotifier extends StateNotifier<NavigationState> {
 
   NavigationNotifier(this._hiveService)
       : super(NavigationState(lastUpdated: DateTime.now())) {
-    _loadFromHive();
+    // Always start at Dashboard (index 0) for better UX
+    _resetToHome();
   }
 
   /// Load navigation state from Hive
@@ -75,18 +79,37 @@ class NavigationNotifier extends StateNotifier<NavigationState> {
     }
   }
 
-  /// Set current navigation index
+  /// Set current navigation index with optimized performance and haptic feedback
   void setCurrentIndex(int index) {
-    print('🔐 [NavigationProvider] Setting current index to: $index');
+    developer.log('🔐 [NavigationProvider] Setting current index to: $index');
+
     if (state.currentIndex != index) {
+      // Add haptic feedback for smooth navigation
+      HapticFeedback.lightImpact();
+
       state = state.copyWith(
         currentIndex: index,
         lastUpdated: DateTime.now(),
       );
-      print(
+
+      developer.log(
           '🔐 [NavigationProvider] State updated - currentIndex: ${state.currentIndex}');
-      _saveToHive();
+
+      // Save to Hive with performance monitoring
+      PerformanceService.measureBuildTime('NavigationPersistence', () {
+        _saveToHive();
+      });
     }
+  }
+
+  /// Reset to home tab
+  void _resetToHome() {
+    developer.log('🔐 [NavigationProvider] Resetting to home tab (Dashboard)');
+    state = state.copyWith(
+      currentIndex: 0, // Dashboard is always index 0
+      lastUpdated: DateTime.now(),
+    );
+    _saveToHive();
   }
 
   /// Reset to home tab

@@ -1,22 +1,23 @@
 import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 
 /// Simple image caching service (placeholder implementation)
 class ImageCacheService {
   /// Initialize image cache
   static Future<void> initialize() async {
     try {
-      debugPrint('Image cache service initialized');
+      developer.log('Image cache service initialized');
     } catch (e) {
-      debugPrint('Image cache initialization error: $e');
+      developer.log('Image cache initialization error: $e');
     }
   }
 
   /// Cache images from URLs (placeholder)
   static Future<void> cacheImagesFromUrls(List<String> urls) async {
     try {
-      debugPrint('Image caching initialized for ${urls.length} images');
+      developer.log('Image caching initialized for ${urls.length} images');
     } catch (e) {
-      debugPrint('Error caching images: $e');
+      developer.log('Error caching images: $e');
     }
   }
 
@@ -34,9 +35,9 @@ class ImageCacheService {
   /// Clear all cached images
   static Future<void> clearCache() async {
     try {
-      debugPrint('Image cache cleared');
+      developer.log('Image cache cleared');
     } catch (e) {
-      debugPrint('Error clearing image cache: $e');
+      developer.log('Error clearing image cache: $e');
     }
   }
 }

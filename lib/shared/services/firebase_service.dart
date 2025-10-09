@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:developer' as developer;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -29,64 +30,67 @@ class FirebaseService {
 
   /// Initialize Firebase service
   Future<void> initialize() async {
-    print('🔥 [FirebaseService] Starting Firebase initialization...');
+    developer.log('🔥 [FirebaseService] Starting Firebase initialization...');
 
     if (_isInitialized) {
-      print('🔥 [FirebaseService] Firebase already initialized, skipping...');
+      developer.log(
+          '🔥 [FirebaseService] Firebase already initialized, skipping...');
       return;
     }
 
     try {
       // Check if Firebase is already initialized
       if (Firebase.apps.isNotEmpty) {
-        print(
+        developer.log(
             '🔥 [FirebaseService] Firebase apps already exist, marking as initialized');
         _isInitialized = true;
         return;
       }
 
-      print('🔥 [FirebaseService] Initializing Firebase with options...');
+      developer
+          .log('🔥 [FirebaseService] Initializing Firebase with options...');
       // Initialize Firebase with options
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      print('🔥 [FirebaseService] Firebase.initializeApp completed');
+      developer.log('🔥 [FirebaseService] Firebase.initializeApp completed');
 
       // Wait a bit for Firebase to fully initialize
-      print('🔥 [FirebaseService] Waiting for Firebase to fully initialize...');
+      developer.log(
+          '🔥 [FirebaseService] Waiting for Firebase to fully initialize...');
       await Future.delayed(const Duration(milliseconds: 500));
 
-      print('🔥 [FirebaseService] Initializing Firebase services...');
+      developer.log('🔥 [FirebaseService] Initializing Firebase services...');
       // Initialize Firebase services
       _auth = FirebaseAuth.instance;
-      print('🔥 [FirebaseService] FirebaseAuth initialized');
+      developer.log('🔥 [FirebaseService] FirebaseAuth initialized');
 
       _firestore = FirebaseFirestore.instance;
-      print('🔥 [FirebaseService] FirebaseFirestore initialized');
+      developer.log('🔥 [FirebaseService] FirebaseFirestore initialized');
 
       _storage = FirebaseStorage.instance;
-      print('🔥 [FirebaseService] FirebaseStorage initialized');
+      developer.log('🔥 [FirebaseService] FirebaseStorage initialized');
 
       _analytics = FirebaseAnalytics.instance;
-      print('🔥 [FirebaseService] FirebaseAnalytics initialized');
+      developer.log('🔥 [FirebaseService] FirebaseAnalytics initialized');
 
       _crashlytics = FirebaseCrashlytics.instance;
-      print('🔥 [FirebaseService] FirebaseCrashlytics initialized');
+      developer.log('🔥 [FirebaseService] FirebaseCrashlytics initialized');
 
       _messaging = FirebaseMessaging.instance;
-      print('🔥 [FirebaseService] FirebaseMessaging initialized');
+      developer.log('🔥 [FirebaseService] FirebaseMessaging initialized');
 
-      print('🔥 [FirebaseService] Configuring Firebase settings...');
+      developer.log('🔥 [FirebaseService] Configuring Firebase settings...');
       // Configure Firebase settings
       await _configureFirebase();
-      print('🔥 [FirebaseService] Firebase configuration completed');
+      developer.log('🔥 [FirebaseService] Firebase configuration completed');
 
       _isInitialized = true;
-      print('✅ [FirebaseService] Firebase initialized successfully');
+      developer.log('✅ [FirebaseService] Firebase initialized successfully');
     } catch (e) {
       // Log the error but don't throw - allow app to continue with limited functionality
-      print('❌ [FirebaseService] Firebase initialization failed: $e');
-      print('❌ [FirebaseService] Error type: ${e.runtimeType}');
+      developer.log('❌ [FirebaseService] Firebase initialization failed: $e');
+      developer.log('❌ [FirebaseService] Error type: ${e.runtimeType}');
       _isInitialized = false;
     }
   }
@@ -110,7 +114,7 @@ class FirebaseService {
         cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
       );
     } catch (e) {
-      print('Firebase configuration failed: $e');
+      developer.log('Firebase configuration failed: $e');
       // Continue without some Firebase features
     }
   }
@@ -307,6 +311,43 @@ class FirebaseService {
     }
   }
 
+  /// Get all documents from a Firestore collection
+  Future<List<Map<String, dynamic>>> getAllFromFirestore({
+    required String collection,
+  }) async {
+    if (!_isInitialized || _firestore == null) {
+      throw Exception('Firebase not initialized. Call initialize() first.');
+    }
+
+    try {
+      final snapshot = await _firestore!.collection(collection).get();
+
+      final documents = snapshot.docs
+          .map((doc) => {
+                'id': doc.id,
+                ...doc.data(),
+              })
+          .toList();
+
+      if (_analytics != null) {
+        await _analytics!.logEvent(
+          name: 'firestore_read_all',
+          parameters: {
+            'collection': collection,
+            'document_count': documents.length,
+          },
+        );
+      }
+
+      return documents;
+    } catch (e) {
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
+      rethrow;
+    }
+  }
+
   /// Get data from Firestore
   Future<DocumentSnapshot> getFromFirestore({
     required String collection,
@@ -362,6 +403,36 @@ class FirebaseService {
       }
 
       return snapshot;
+    } catch (e) {
+      if (_crashlytics != null) {
+        await _crashlytics!.recordError(e, null);
+      }
+      rethrow;
+    }
+  }
+
+  /// Update data in Firestore
+  Future<void> updateFirestore({
+    required String collection,
+    required String documentId,
+    required Map<String, dynamic> data,
+  }) async {
+    if (!_isInitialized || _firestore == null) {
+      throw Exception('Firebase not initialized. Call initialize() first.');
+    }
+
+    try {
+      await _firestore!.collection(collection).doc(documentId).update(data);
+
+      if (_analytics != null) {
+        await _analytics!.logEvent(
+          name: 'firestore_update',
+          parameters: {
+            'collection': collection,
+            'document_id': documentId,
+          },
+        );
+      }
     } catch (e) {
       if (_crashlytics != null) {
         await _crashlytics!.recordError(e, null);

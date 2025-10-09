@@ -1,8 +1,8 @@
+import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../shared/services/hive_service.dart';
-import '../../../../shared/services/firebase_user_service.dart';
+import '../../../../shared/services/simple_memory_service.dart';
 import '../../data/models/memory_model.dart';
-import '../../data/repositories/hybrid_memory_repository.dart';
 
 /// Memory journal state
 class MemoryJournalState {
@@ -33,34 +33,54 @@ class MemoryJournalState {
   }
 }
 
-/// Memory journal notifier with Hive and Firebase integration
+/// Memory journal notifier with SharedPreferences + Firebase integration
+/// ULTRA-FAST PERFORMANCE - Instant UI updates with background persistence
 class MemoryJournalNotifier extends StateNotifier<MemoryJournalState> {
-  final HybridMemoryRepository _repository;
+  List<MemoryModel> _allMemories =
+      []; // Cache all memories for instant filtering
 
-  MemoryJournalNotifier(this._repository) : super(const MemoryJournalState()) {
-    loadMemories();
+  MemoryJournalNotifier() : super(const MemoryJournalState()) {
+    loadMemories(); // Load from SharedPreferences + Firebase sync
   }
 
-  /// Load all memories from Hive
+  /// Load memories from SharedPreferences + Firebase sync
   Future<void> loadMemories() async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+
     try {
-      state = state.copyWith(isLoading: true, errorMessage: null);
+      // Get memories from SharedPreferences + Firebase sync
+      final simpleMemories = await SimpleMemoryService.getAllMemoriesWithSync();
 
-      final memories = await _repository.getAllMemories();
+      // Convert SimpleMemory to MemoryModel
+      final memories = simpleMemories
+          .map((simpleMemory) => MemoryModel(
+                id: simpleMemory.id,
+                title: simpleMemory.title,
+                description: simpleMemory.description,
+                emoji: simpleMemory.emoji,
+                photoPath: simpleMemory.photoPath,
+                date: simpleMemory.date,
+                voicePath: simpleMemory.voicePath,
+                mood: simpleMemory.mood,
+                positionIndex: 0,
+                timestamp: simpleMemory.timestamp,
+                isFavorite: simpleMemory.isFavorite,
+                location: simpleMemory.location,
+                tags: simpleMemory.tags,
+              ))
+          .toList();
 
-      state = state.copyWith(
-        memories: memories,
-        isLoading: false,
-      );
+      _allMemories = memories;
+      state = state.copyWith(memories: memories, isLoading: false);
+      developer.log(
+          '📱 Loaded ${memories.length} memories from SharedPreferences + Firebase');
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      state = state.copyWith(errorMessage: e.toString(), isLoading: false);
+      developer.log('❌ Error loading memories: $e');
     }
   }
 
-  /// Add new memory
+  /// Add new memory - SharedPreferences + Firebase
   Future<void> addMemory({
     required String title,
     required String description,
@@ -73,222 +93,180 @@ class MemoryJournalNotifier extends StateNotifier<MemoryJournalState> {
     DateTime? date,
   }) async {
     try {
-      state = state.copyWith(isAddingMemory: true, errorMessage: null);
+      state = state.copyWith(isAddingMemory: true);
 
-      final now = DateTime.now();
-      final memoryId = 'memory_${now.millisecondsSinceEpoch}';
-      final memoryDate = date ?? now;
       final memory = MemoryModel(
-        id: memoryId,
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
         title: title,
         description: description,
         emoji: emoji,
         photoPath: photoPath,
+        date: date?.toIso8601String() ?? DateTime.now().toIso8601String(),
         voicePath: voicePath,
-        date: memoryDate.toIso8601String(),
         mood: mood,
-        positionIndex: state.memories.length,
-        timestamp: memoryDate.millisecondsSinceEpoch,
+        positionIndex: _allMemories.length,
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        isFavorite: false,
         location: location,
         tags: tags,
       );
 
-      // Save to both Hive and Firebase (hybrid repository handles this)
-      await _repository.addMemory(memory);
+      // Convert MemoryModel to SimpleMemory and save
+      final simpleMemory = SimpleMemory(
+        id: memory.id,
+        title: memory.title,
+        description: memory.description,
+        emoji: memory.emoji,
+        date: memory.date,
+        mood: memory.mood,
+        timestamp: memory.timestamp,
+        isFavorite: memory.isFavorite,
+        photoPath: memory.photoPath,
+        voicePath: memory.voicePath,
+        location: memory.location,
+        tags: memory.tags,
+      );
 
-      // Add to current state
-      final updatedMemories = [memory, ...state.memories];
-      state = state.copyWith(
-        memories: updatedMemories,
-        isAddingMemory: false,
-      );
+      await SimpleMemoryService.saveMemory(simpleMemory);
+
+      // Refresh the list
+      await loadMemories();
+
+      state = state.copyWith(isAddingMemory: false);
+      developer.log('✅ Memory added successfully: ${memory.title}');
     } catch (e) {
-      state = state.copyWith(
-        isAddingMemory: false,
-        errorMessage: e.toString(),
-      );
+      state = state.copyWith(isAddingMemory: false, errorMessage: e.toString());
+      developer.log('❌ Error adding memory: $e');
     }
   }
 
-  /// Update existing memory
+  /// Update memory - SharedPreferences + Firebase
   Future<void> updateMemory(MemoryModel memory) async {
     try {
-      state = state.copyWith(isLoading: true, errorMessage: null);
-
-      await _repository.updateMemory(memory);
-
-      // Update in current state
-      final updatedMemories = state.memories.map((m) {
-        if (m.id == memory.id) return memory;
-        return m;
-      }).toList();
-
-      state = state.copyWith(
-        memories: updatedMemories,
-        isLoading: false,
+      // Convert MemoryModel to SimpleMemory and save
+      final simpleMemory = SimpleMemory(
+        id: memory.id,
+        title: memory.title,
+        description: memory.description,
+        emoji: memory.emoji,
+        date: memory.date,
+        mood: memory.mood,
+        timestamp: memory.timestamp,
+        isFavorite: memory.isFavorite,
+        photoPath: memory.photoPath,
+        voicePath: memory.voicePath,
+        location: memory.location,
+        tags: memory.tags,
       );
+
+      await SimpleMemoryService.saveMemory(simpleMemory);
+
+      // Refresh the list
+      await loadMemories();
+
+      developer.log('✅ Memory updated successfully: ${memory.title}');
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      state = state.copyWith(errorMessage: e.toString());
+      developer.log('❌ Error updating memory: $e');
     }
   }
 
-  /// Update existing memory with individual parameters
-  Future<void> updateMemoryWithParams(
-    String memoryId, {
-    required String title,
-    required String description,
-    required String emoji,
+  /// Update memory with parameters - SharedPreferences + Firebase
+  Future<MemoryModel> updateMemoryWithParams({
+    required String id,
+    String? title,
+    String? description,
+    String? emoji,
     String? photoPath,
     String? voicePath,
     String? location,
-    List<String> tags = const [],
-    String mood = 'joyful',
+    List<String>? tags,
+    String? mood,
+    DateTime? date,
   }) async {
     try {
-      state = state.copyWith(isLoading: true, errorMessage: null);
-
       // Find existing memory
-      final existingMemory = state.memories.firstWhere(
-        (m) => m.id == memoryId,
-        orElse: () => throw Exception('Memory not found'),
-      );
+      final existingMemory = _allMemories.firstWhere((m) => m.id == id);
 
       // Create updated memory
       final updatedMemory = existingMemory.copyWith(
-        title: title,
-        description: description,
-        emoji: emoji,
-        photoPath: photoPath,
-        voicePath: voicePath,
-        location: location,
-        tags: tags,
-        mood: mood,
+        title: title ?? existingMemory.title,
+        description: description ?? existingMemory.description,
+        emoji: emoji ?? existingMemory.emoji,
+        photoPath: photoPath ?? existingMemory.photoPath,
+        voicePath: voicePath ?? existingMemory.voicePath,
+        location: location ?? existingMemory.location,
+        tags: tags ?? existingMemory.tags,
+        mood: mood ?? existingMemory.mood,
+        date: date?.toIso8601String() ?? existingMemory.date,
       );
 
-      await _repository.updateMemory(updatedMemory);
-
-      // Update in current state
-      final updatedMemories = state.memories.map((m) {
-        if (m.id == memoryId) return updatedMemory;
-        return m;
-      }).toList();
-
-      state = state.copyWith(
-        memories: updatedMemories,
-        isLoading: false,
-      );
+      await updateMemory(updatedMemory);
+      return updatedMemory;
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      developer.log('❌ Error updating memory with params: $e');
+      return _allMemories.firstWhere((m) => m.id == id);
     }
   }
 
-  /// Toggle favorite status
-  Future<void> toggleFavorite(String memoryId) async {
+  /// Delete memory - SharedPreferences + Firebase
+  Future<void> deleteMemory(String id) async {
     try {
-      await _repository.toggleFavorite(memoryId);
+      await SimpleMemoryService.deleteMemory(id);
 
-      // Update in current state
-      final updatedMemories = state.memories.map((memory) {
-        if (memory.id == memoryId) {
-          return memory.copyWith(isFavorite: !memory.isFavorite);
-        }
-        return memory;
-      }).toList();
+      // Refresh the list
+      await loadMemories();
 
-      state = state.copyWith(memories: updatedMemories);
+      developer.log('✅ Memory deleted successfully: $id');
     } catch (e) {
       state = state.copyWith(errorMessage: e.toString());
+      developer.log('❌ Error deleting memory: $e');
     }
   }
 
-  /// Delete memory
-  Future<void> deleteMemory(String memoryId) async {
+  /// Toggle favorite - SharedPreferences + Firebase
+  Future<void> toggleFavorite(String id) async {
     try {
-      state = state.copyWith(isLoading: true, errorMessage: null);
+      await SimpleMemoryService.toggleFavorite(id);
 
-      await _repository.deleteMemory(memoryId);
+      // Refresh the list
+      await loadMemories();
 
-      // Remove from current state
-      final updatedMemories =
-          state.memories.where((m) => m.id != memoryId).toList();
-
-      state = state.copyWith(
-        memories: updatedMemories,
-        isLoading: false,
-      );
+      developer.log('✅ Favorite toggled successfully: $id');
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
-    }
-  }
-
-  /// Search memories
-  Future<void> searchMemories(String query) async {
-    try {
-      state = state.copyWith(isLoading: true, errorMessage: null);
-
-      final memories = await _repository.searchMemories(query);
-
-      state = state.copyWith(
-        memories: memories,
-        isLoading: false,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      state = state.copyWith(errorMessage: e.toString());
+      developer.log('❌ Error toggling favorite: $e');
     }
   }
 
   /// Get favorite memories
-  Future<void> getFavoriteMemories() async {
-    try {
-      state = state.copyWith(isLoading: true, errorMessage: null);
+  List<MemoryModel> getFavoriteMemories() {
+    return _allMemories.where((memory) => memory.isFavorite).toList();
+  }
 
-      final memories = await _repository.getFavoriteMemories();
+  /// Get memories by mood
+  List<MemoryModel> getMemoriesByMood(String mood) {
+    return _allMemories.where((memory) => memory.mood == mood).toList();
+  }
 
-      state = state.copyWith(
-        memories: memories,
-        isLoading: false,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
-    }
+  /// Search memories
+  List<MemoryModel> searchMemories(String query) {
+    final lowercaseQuery = query.toLowerCase();
+    return _allMemories.where((memory) {
+      return memory.title.toLowerCase().contains(lowercaseQuery) ||
+          memory.description.toLowerCase().contains(lowercaseQuery) ||
+          memory.tags.any((tag) => tag.toLowerCase().contains(lowercaseQuery));
+    }).toList();
   }
 
   /// Clear error message
   void clearError() {
     state = state.copyWith(errorMessage: null);
   }
-
-  /// Refresh memories
-  Future<void> refresh() async {
-    await loadMemories();
-  }
 }
 
-/// Hybrid repository provider
-final hybridMemoryRepositoryProvider = Provider<HybridMemoryRepository>((ref) {
-  final hiveService = ref.watch(hiveServiceProvider);
-  final firebaseUserService = ref.watch(firebaseUserServiceProvider);
-  return HybridMemoryRepository(hiveService, firebaseUserService);
-});
-
-/// Memory journal provider
+/// Provider
 final memoryJournalProvider =
     StateNotifierProvider<MemoryJournalNotifier, MemoryJournalState>((ref) {
-  final repository = ref.watch(hybridMemoryRepositoryProvider);
-  return MemoryJournalNotifier(repository);
+  return MemoryJournalNotifier();
 });

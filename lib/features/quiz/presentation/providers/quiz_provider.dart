@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import '../../data/repositories/quiz_repository.dart';
 import '../../domain/entities/quiz_entities.dart';
 
@@ -82,11 +83,11 @@ class QuizProvider extends ChangeNotifier {
       } else {
         _currentQuestions = [];
         _totalQuestions = 0;
-        debugPrint(
+        developer.log(
             'No questions found for category: $category, level: $_currentLevel');
       }
     } catch (e) {
-      debugPrint('Error loading quiz questions: $e');
+      developer.log('Error loading quiz questions: $e');
       _currentQuestions = [];
       _totalQuestions = 0;
     }

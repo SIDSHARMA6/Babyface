@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:developer' as developer;
 import '../../../../shared/services/hive_service.dart';
 import '../../../../shared/services/firebase_user_service.dart';
 import '../models/memory_model.dart';
@@ -16,44 +18,97 @@ class HybridMemoryRepository {
       : _hiveRepository = MemoryRepositoryImpl(hiveService),
         _firebaseRepository = FirebaseMemoryRepository(_firebaseUserService);
 
+  /// Get all memories synchronously (instant read from Hive cache)
+  List<MemoryModel> getAllMemoriesSync() {
+    try {
+      // Get from Hive cache instantly (no async)
+      return _hiveRepository.getAllMemoriesSync();
+    } catch (e) {
+      developer.log('Error getting memories synchronously: $e');
+      return [];
+    }
+  }
+
   /// Get all memories (from Hive first, then sync with Firebase)
   Future<List<MemoryModel>> getAllMemories() async {
     try {
       // Get from Hive first (offline-first)
       final hiveMemories = await _hiveRepository.getAllMemories();
 
-      // If user is authenticated, sync with Firebase
+      // If user is authenticated, sync with Firebase (non-blocking)
       if (_firebaseUserService.isSignedIn) {
-        try {
-          final firebaseMemories = await _firebaseRepository.getAllMemories();
-
-          // Merge Firebase memories with Hive memories
-          final allMemories = <String, MemoryModel>{};
-
-          // Add Hive memories
-          for (final memory in hiveMemories) {
-            allMemories[memory.id] = memory;
-          }
-
-          // Add/Update with Firebase memories
-          for (final memory in firebaseMemories) {
-            allMemories[memory.id] = memory;
-            // Also save to Hive for offline access
-            await _hiveRepository.addMemory(memory);
-          }
-
-          return allMemories.values.toList()
-            ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-        } catch (e) {
-          // If Firebase fails, return Hive memories
-          print('Firebase sync failed, using Hive data: $e');
-          return hiveMemories;
-        }
+        unawaited(_syncWithFirebase(hiveMemories));
       }
 
       return hiveMemories;
     } catch (e) {
+      developer.log('Error getting memories from Hive, trying Firebase: $e');
+      // If Hive fails and user is authenticated, try Firebase as fallback
+      if (_firebaseUserService.isSignedIn) {
+        try {
+          final firebaseMemories = await _firebaseRepository.getAllMemories();
+          // Save Firebase memories to Hive for future offline access
+          for (final memory in firebaseMemories) {
+            try {
+              await _hiveRepository.addMemory(memory);
+            } catch (hiveError) {
+              developer.log('Failed to save Firebase memory to Hive: $hiveError');
+            }
+          }
+          return firebaseMemories;
+        } catch (firebaseError) {
+          developer.log('Firebase also failed: $firebaseError');
+        }
+      }
       throw Exception('Failed to get memories: $e');
+    }
+  }
+
+  /// Sync memories with Firebase (non-blocking)
+  Future<void> _syncWithFirebase(List<MemoryModel> hiveMemories) async {
+    try {
+      final firebaseMemories = await _firebaseRepository.getAllMemories();
+
+      // Create a map of Hive memories for quick lookup
+      final hiveMemoryMap = <String, MemoryModel>{};
+      for (final memory in hiveMemories) {
+        hiveMemoryMap[memory.id] = memory;
+      }
+
+      // Sync Firebase memories to Hive (download)
+      for (final firebaseMemory in firebaseMemories) {
+        if (!hiveMemoryMap.containsKey(firebaseMemory.id)) {
+          // New memory from Firebase, save to Hive
+          try {
+            await _hiveRepository.addMemory(firebaseMemory);
+            developer.log(
+                'Synced memory from Firebase to Hive: ${firebaseMemory.title}');
+          } catch (e) {
+            developer.log('Failed to sync memory ${firebaseMemory.id} to Hive: $e');
+          }
+        }
+      }
+
+      // Sync Hive memories to Firebase (upload)
+      final firebaseMemoryMap = <String, MemoryModel>{};
+      for (final memory in firebaseMemories) {
+        firebaseMemoryMap[memory.id] = memory;
+      }
+
+      for (final hiveMemory in hiveMemories) {
+        if (!firebaseMemoryMap.containsKey(hiveMemory.id)) {
+          // New memory in Hive, upload to Firebase
+          try {
+            await _firebaseRepository.addMemory(hiveMemory);
+            developer.log('Synced memory from Hive to Firebase: ${hiveMemory.title}');
+          } catch (e) {
+            developer.log('Failed to sync memory ${hiveMemory.id} to Firebase: $e');
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Firebase sync failed: $e');
+      // Don't rethrow - local data is still available
     }
   }
 
@@ -74,7 +129,7 @@ class HybridMemoryRepository {
             return firebaseMemory;
           }
         } catch (e) {
-          print('Firebase get memory failed: $e');
+          developer.log('Firebase get memory failed: $e');
         }
       }
 
@@ -90,14 +145,12 @@ class HybridMemoryRepository {
       // Save to Hive first (offline-first)
       await _hiveRepository.addMemory(memory);
 
-      // If user is authenticated, also save to Firebase
+      // If user is authenticated, also save to Firebase (non-blocking)
       if (_firebaseUserService.isSignedIn) {
-        try {
-          await _firebaseRepository.addMemory(memory);
-        } catch (e) {
-          print('Firebase save failed, memory saved locally: $e');
-          // Don't rethrow - memory is saved locally
-        }
+        unawaited(_firebaseRepository.addMemory(memory).catchError((e) {
+          developer.log('Firebase save failed, memory saved locally: $e');
+          return memory; // Return the memory that was saved locally
+        }));
       }
 
       return memory;
@@ -117,7 +170,7 @@ class HybridMemoryRepository {
         try {
           await _firebaseRepository.updateMemory(memory);
         } catch (e) {
-          print('Firebase update failed, memory updated locally: $e');
+          developer.log('Firebase update failed, memory updated locally: $e');
           // Don't rethrow - memory is updated locally
         }
       }
@@ -139,7 +192,7 @@ class HybridMemoryRepository {
         try {
           await _firebaseRepository.deleteMemory(id);
         } catch (e) {
-          print('Firebase delete failed, memory deleted locally: $e');
+          developer.log('Firebase delete failed, memory deleted locally: $e');
           // Don't rethrow - memory is deleted locally
         }
       }
@@ -159,7 +212,7 @@ class HybridMemoryRepository {
         try {
           await _firebaseRepository.toggleFavorite(id);
         } catch (e) {
-          print('Firebase toggle favorite failed, updated locally: $e');
+          developer.log('Firebase toggle favorite failed, updated locally: $e');
           // Don't rethrow - favorite is toggled locally
         }
       }
@@ -220,11 +273,11 @@ class HybridMemoryRepository {
         try {
           await _firebaseRepository.addMemory(memory);
         } catch (e) {
-          print('Failed to sync memory ${memory.id}: $e');
+          developer.log('Failed to sync memory ${memory.id}: $e');
         }
       }
 
-      print('Memory sync completed');
+      developer.log('Memory sync completed');
     } catch (e) {
       throw Exception('Failed to sync with Firebase: $e');
     }
